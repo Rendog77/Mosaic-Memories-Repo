@@ -38,3 +38,15 @@ public enum PhotoSelectionError: Error, Equatable, Sendable {
     case assetUnavailable(String)
     case iCloudDownloadFailed(String)
 }
+
+public struct UnavailablePhotoSelector: HeroPhotoSelecting, SourcePhotosSelecting {
+    public init() {}
+
+    public func selectHero() async throws -> AssetReference? {
+        throw PhotoSelectionError.assetUnavailable("Photo picker is not connected")
+    }
+
+    public func selectSources(request: SourceSelectionRequest) async throws -> [AssetReference] {
+        throw PhotoSelectionError.assetUnavailable("Photo picker is not connected")
+    }
+}

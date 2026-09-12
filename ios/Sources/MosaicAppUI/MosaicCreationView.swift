@@ -54,7 +54,7 @@ public struct MosaicCreationView: View {
                 detail: "Select the main image your memories will recreate.",
                 actionTitle: "Choose hero photo"
             ) {
-                await session.selectHero(.init(id: "ui-placeholder-hero", origin: .testFixture))
+                await session.requestHeroSelection()
             }
         case .memories:
             StepCard(
@@ -62,8 +62,7 @@ public struct MosaicCreationView: View {
                 detail: "For the first release, select at least 100 photos using Apple's system picker.",
                 actionTitle: "Choose source photos"
             ) {
-                let fixtures = (0..<100).map { AssetReference(id: "ui-placeholder-\($0)", origin: .testFixture) }
-                await session.reviewSources(fixtures)
+                await session.requestSourceSelection()
             }
         case .sourceReview:
             StepCard(

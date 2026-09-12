@@ -5,6 +5,22 @@ import MosaicFeatures
 import MosaicPersistence
 @testable import MosaicAppUI
 
+private struct HeroSelectorStub: HeroPhotoSelecting {
+    let result: Result<AssetReference?, PhotoSelectionError>
+
+    func selectHero() async throws -> AssetReference? {
+        try result.get()
+    }
+}
+
+private struct SourceSelectorStub: SourcePhotosSelecting {
+    let result: Result<[AssetReference], PhotoSelectionError>
+
+    func selectSources(request: SourceSelectionRequest) async throws -> [AssetReference] {
+        try result.get()
+    }
+}
+
 @MainActor
 final class CreationSessionTests: XCTestCase {
     func testSessionAutosavesAndRestoresWorkflow() async throws {
@@ -32,5 +48,60 @@ final class CreationSessionTests: XCTestCase {
         await session.confirmSources()
         XCTAssertEqual(session.message, "Choose at least 100 photos. You currently have 0.")
     }
-}
 
+    func testInjectedSelectorsAdvanceTheWorkflow() async {
+        let hero = AssetReference(id: "hero", origin: .testFixture)
+        let sources = (0..<100).map { AssetReference(id: "source-\($0)", origin: .testFixture) }
+        let session = CreationSession(
+            store: InMemoryProjectStore(),
+            heroSelector: HeroSelectorStub(result: .success(hero)),
+            sourceSelector: SourceSelectorStub(result: .success(sources))
+        )
+
+        await session.requestHeroSelection()
+        XCTAssertEqual(session.workflow.step, .memories)
+        await session.requestSourceSelection()
+        XCTAssertEqual(session.workflow.step, .sourceReview)
+        XCTAssertEqual(session.workflow.project.sources.count, 100)
+    }
+
+    func testPickerCancellationLeavesWorkflowUnchanged() async {
+        let session = CreationSession(
+            store: InMemoryProjectStore(),
+            heroSelector: HeroSelectorStub(result: .success(nil))
+        )
+
+        await session.requestHeroSelection()
+
+        XCTAssertEqual(session.workflow.step, .hero)
+        XCTAssertEqual(session.photoSelectionState, .cancelled)
+        XCTAssertNil(session.message)
+    }
+
+    func testPermissionDenialExplainsSelectedPhotosFallback() async {
+        let session = CreationSession(
+            store: InMemoryProjectStore(),
+            sourceSelector: SourceSelectorStub(result: .failure(.permissionDenied))
+        )
+
+        await session.requestSourceSelection()
+
+        XCTAssertEqual(session.photoSelectionState, .failed(.permissionDenied))
+        XCTAssertEqual(
+            session.message,
+            "Photo access was denied. You can still choose selected photos without granting full-library access."
+        )
+    }
+
+    func testICloudFailureProvidesRetryGuidance() async {
+        let session = CreationSession(
+            store: InMemoryProjectStore(),
+            sourceSelector: SourceSelectorStub(result: .failure(.iCloudDownloadFailed("source-1")))
+        )
+
+        await session.requestSourceSelection()
+
+        XCTAssertEqual(session.photoSelectionState, .failed(.iCloudDownloadFailed("source-1")))
+        XCTAssertEqual(session.message, "A photo could not be downloaded from iCloud. Check your connection and try again.")
+    }
+}

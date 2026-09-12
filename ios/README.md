@@ -20,6 +20,8 @@ This folder contains the platform-independent production foundation as a Swift P
 - Root coordination between the project catalogue and creation journey.
 - Rename and confirmed-delete project management; deletion never touches original photos.
 - Fake photo selectors covering cancellation and permission-denied behaviour.
+- Dependency-injected hero and source selection in the creation session.
+- Explicit picker progress, cancellation, unavailable-asset, permission, and iCloud failure states.
 
 Photo-library integration remains behind the next platform boundary. The current hero and source buttons deliberately use fixture references so the complete navigation/persistence shell can be compiled and tested before PhotoKit is introduced. The package cannot be compiled locally because Apple Swift/Xcode tooling is unavailable on Windows; GitHub Actions provides the macOS build gate.
 
