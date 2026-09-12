@@ -11,6 +11,7 @@ public enum PhotoSelectionState: Equatable, Sendable {
     case selectingSources
     case cancelled
     case failed(PhotoSelectionError)
+    case invalidSources(SourceSelectionValidationError)
 }
 
 @MainActor
@@ -24,12 +25,14 @@ public final class CreationSession: ObservableObject {
     private let analytics: any AnalyticsRecording
     private let heroSelector: any HeroPhotoSelecting
     private let sourceSelector: any SourcePhotosSelecting
+    private let sourceValidator: SourceSelectionValidator
 
     public init(
         store: any ProjectStoring,
         analytics: any AnalyticsRecording = NoOpAnalyticsRecorder(),
         heroSelector: any HeroPhotoSelecting = UnavailablePhotoSelector(),
         sourceSelector: any SourcePhotosSelecting = UnavailablePhotoSelector(),
+        sourceValidator: SourceSelectionValidator = .init(),
         project: MosaicProject = .init(),
         step: CreationStep? = nil
     ) {
@@ -37,6 +40,7 @@ public final class CreationSession: ObservableObject {
         self.analytics = analytics
         self.heroSelector = heroSelector
         self.sourceSelector = sourceSelector
+        self.sourceValidator = sourceValidator
         self.workflow = CreationWorkflow(project: project, step: step ?? Self.inferredStep(for: project))
     }
 
@@ -89,8 +93,11 @@ public final class CreationSession: ObservableObject {
         message = nil
         do {
             let references = try await sourceSelector.selectSources(request: request)
-            await reviewSources(Array(references.prefix(request.maximumCount)))
+            let validated = try sourceValidator.validate(references, for: request)
+            await reviewSources(validated)
             photoSelectionState = .idle
+        } catch let error as SourceSelectionValidationError {
+            handleSourceValidationError(error)
         } catch let error as PhotoSelectionError {
             handleSelectionError(error)
         } catch {
@@ -142,6 +149,19 @@ public final class CreationSession: ObservableObject {
             message = "A selected photo is unavailable. Choose another photo and try again."
         case .iCloudDownloadFailed:
             message = "A photo could not be downloaded from iCloud. Check your connection and try again."
+        }
+    }
+
+    private func handleSourceValidationError(_ error: SourceSelectionValidationError) {
+        photoSelectionState = .invalidSources(error)
+        switch error {
+        case .tooManySources(let maximum, let actual):
+            message = "Choose no more than \(maximum) photos. You selected \(actual)."
+        case .duplicateReferences(let identifiers):
+            let noun = identifiers.count == 1 ? "photo was" : "photos were"
+            message = "\(identifiers.count) duplicate \(noun) selected. Remove duplicates and try again."
+        case .unexpectedOrigin:
+            message = "Those photos came from an unexpected access mode. Please select them again."
         }
     }
 

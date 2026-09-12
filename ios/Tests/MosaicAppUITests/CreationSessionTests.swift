@@ -104,4 +104,20 @@ final class CreationSessionTests: XCTestCase {
         XCTAssertEqual(session.photoSelectionState, .failed(.iCloudDownloadFailed("source-1")))
         XCTAssertEqual(session.message, "A photo could not be downloaded from iCloud. Check your connection and try again.")
     }
+
+    func testOversizedSelectionIsRejectedRatherThanSilentlyTruncated() async {
+        let sources = (0..<4).map { AssetReference(id: "source-\($0)", origin: .testFixture) }
+        let session = CreationSession(
+            store: InMemoryProjectStore(),
+            sourceSelector: SourceSelectorStub(result: .success(sources))
+        )
+
+        await session.requestSourceSelection(
+            request: .init(minimumCount: 1, maximumCount: 3)
+        )
+
+        XCTAssertEqual(session.photoSelectionState, .invalidSources(.tooManySources(maximum: 3, actual: 4)))
+        XCTAssertEqual(session.workflow.project.sources, [])
+        XCTAssertEqual(session.message, "Choose no more than 3 photos. You selected 4.")
+    }
 }

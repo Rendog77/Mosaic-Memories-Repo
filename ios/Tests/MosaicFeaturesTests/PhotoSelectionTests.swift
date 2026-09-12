@@ -36,5 +36,44 @@ final class PhotoSelectionTests: XCTestCase {
             XCTFail("Unexpected error: \(error)")
         }
     }
-}
 
+    func testValidatorRejectsSelectionOverMaximumWithoutTruncating() {
+        let references = (0..<4).map { AssetReference(id: "source-\($0)", origin: .photoPicker) }
+        let request = SourceSelectionRequest(minimumCount: 1, maximumCount: 3)
+
+        XCTAssertThrowsError(try SourceSelectionValidator().validate(references, for: request)) { error in
+            XCTAssertEqual(error as? SourceSelectionValidationError, .tooManySources(maximum: 3, actual: 4))
+        }
+    }
+
+    func testValidatorRejectsDuplicateIdentifiers() {
+        let references = [
+            AssetReference(id: "same-photo", origin: .photoPicker),
+            AssetReference(id: "same-photo", origin: .photoPicker),
+        ]
+
+        XCTAssertThrowsError(try SourceSelectionValidator().validate(references, for: .init())) { error in
+            XCTAssertEqual(error as? SourceSelectionValidationError, .duplicateReferences(["same-photo"]))
+        }
+    }
+
+    func testValidatorEnforcesAccessModeOrigins() {
+        let libraryAsset = AssetReference(id: "library-photo", origin: .photoLibrary)
+        let selectedRequest = SourceSelectionRequest(accessMode: .selectedPhotos)
+
+        XCTAssertThrowsError(try SourceSelectionValidator().validate([libraryAsset], for: selectedRequest)) { error in
+            XCTAssertEqual(
+                error as? SourceSelectionValidationError,
+                .unexpectedOrigin(.photoLibrary, accessMode: .selectedPhotos)
+            )
+        }
+    }
+
+    func testValidatorAllowsFixtureOriginsForDeterministicTests() throws {
+        let fixture = AssetReference(id: "fixture", origin: .testFixture)
+        XCTAssertEqual(
+            try SourceSelectionValidator().validate([fixture], for: .init()),
+            [fixture]
+        )
+    }
+}
