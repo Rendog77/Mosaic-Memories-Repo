@@ -26,10 +26,21 @@ public struct CreationWorkflow: Equatable, Sendable {
     }
 
     public mutating func confirmSources(_ sources: [AssetReference], minimum: Int = 100) throws {
+        reviewSources(sources)
+        try confirmReviewedSources(minimum: minimum)
+    }
+
+    public mutating func reviewSources(_ sources: [AssetReference]) {
+        project.sources = sources
+        touch()
+        step = .sourceReview
+    }
+
+    public mutating func confirmReviewedSources(minimum: Int = 100) throws {
+        let sources = project.sources
         guard sources.count >= minimum else {
             throw CreationWorkflowError.insufficientSources(required: minimum, actual: sources.count)
         }
-        project.sources = sources
         touch()
         step = .preview
     }
@@ -46,4 +57,3 @@ public struct CreationWorkflow: Equatable, Sendable {
 public enum CreationWorkflowError: Error, Equatable {
     case insufficientSources(required: Int, actual: Int)
 }
-

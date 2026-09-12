@@ -35,4 +35,4 @@ The source folder represents the already-filtered result of a future instruction
 
 ## Current milestone
 
-The repository has entered **Phase 2 foundation work**. Phase 1's Apple-device spikes were explicitly deferred because the current environment is Windows-only; their gate remains open. The Swift domain modules, persistence contract, workflow state, privacy-safe analytics, tests, and macOS CI are scaffolded, while the SwiftUI application target still requires Xcode/macOS.
+The repository is in **Phase 2 foundation work**. Phase 1's Apple-device spikes were explicitly deferred because the current environment is Windows-only; their gate remains open. Swift domain modules, persistence, workflow state, privacy-safe analytics, an accessible SwiftUI creation shell, autosave/restoration, tests, and macOS CI are scaffolded. A genuine iPhone/iPad application target and PhotoKit integration still require Xcode/macOS.

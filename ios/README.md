@@ -10,8 +10,11 @@ This folder contains the platform-independent production foundation as a Swift P
 - Typed, allowlisted analytics events that cannot accept arbitrary fields.
 - The manual creation workflow state and source-count validation.
 - XCTest coverage and a macOS GitHub Actions workflow.
+- A SwiftUI creation shell covering all six workflow stages.
+- Adaptive layout tokens, Dynamic Type-compatible text, and labelled progress/status feedback.
+- Autosave and most-recent-project restoration through the persistence protocol.
 
-These components are intentionally free of PhotoKit and UIKit so they remain deterministic and testable. The package has not been compiled locally because Apple Swift/Xcode tooling is unavailable on Windows.
+Photo-library integration remains behind the next platform boundary. The current hero and source buttons deliberately use fixture references so the complete navigation/persistence shell can be compiled and tested before PhotoKit is introduced. The package cannot be compiled locally because Apple Swift/Xcode tooling is unavailable on Windows; GitHub Actions provides the macOS build gate.
 
 ## Initial macOS setup
 

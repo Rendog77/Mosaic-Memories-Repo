@@ -13,16 +13,24 @@ let package = Package(
         .library(name: "MosaicPersistence", targets: ["MosaicPersistence"]),
         .library(name: "MosaicPrivacy", targets: ["MosaicPrivacy"]),
         .library(name: "MosaicFeatures", targets: ["MosaicFeatures"]),
+        .library(name: "MosaicAppUI", targets: ["MosaicAppUI"]),
     ],
     targets: [
         .target(name: "MosaicCore"),
         .target(name: "MosaicPersistence", dependencies: ["MosaicCore"]),
         .target(name: "MosaicPrivacy", dependencies: ["MosaicCore"]),
         .target(name: "MosaicFeatures", dependencies: ["MosaicCore"]),
+        .target(
+            name: "MosaicAppUI",
+            dependencies: ["MosaicCore", "MosaicFeatures", "MosaicPersistence", "MosaicPrivacy"]
+        ),
         .testTarget(name: "MosaicCoreTests", dependencies: ["MosaicCore"]),
         .testTarget(name: "MosaicPersistenceTests", dependencies: ["MosaicCore", "MosaicPersistence"]),
         .testTarget(name: "MosaicPrivacyTests", dependencies: ["MosaicCore", "MosaicPrivacy"]),
         .testTarget(name: "MosaicFeaturesTests", dependencies: ["MosaicCore", "MosaicFeatures"]),
+        .testTarget(
+            name: "MosaicAppUITests",
+            dependencies: ["MosaicCore", "MosaicAppUI", "MosaicPersistence"]
+        ),
     ]
 )
-
