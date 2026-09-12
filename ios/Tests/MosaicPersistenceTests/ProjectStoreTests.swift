@@ -48,4 +48,39 @@ final class ProjectStoreTests: XCTestCase {
         XCTAssertEqual(loaded, project)
         XCTAssertEqual(catalog, ProjectCatalog(projects: [project]))
     }
+
+    func testVersionZeroProjectMigratesBeforeDecoding() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let original = MosaicProject(title: "Legacy memory")
+        let encoded = try JSONEncoder().encode(original)
+        var legacy = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        legacy["schemaVersion"] = nil
+        var recipe = try XCTUnwrap(legacy["recipe"] as? [String: Any])
+        recipe["engineVersion"] = nil
+        recipe["replacements"] = nil
+        legacy["recipe"] = recipe
+        let legacyData = try JSONSerialization.data(withJSONObject: legacy)
+        let file = directory.appendingPathComponent(original.id.uuidString).appendingPathExtension("json")
+        try legacyData.write(to: file)
+
+        let store = JSONProjectStore(directory: directory)
+        let migrated = try await store.load(id: original.id)
+
+        XCTAssertEqual(migrated, original)
+        XCTAssertEqual(migrated?.schemaVersion, 1)
+        XCTAssertEqual(migrated?.recipe.engineVersion, 1)
+    }
+
+    func testMigratorRejectsFutureSchema() throws {
+        let future = MosaicProject(schemaVersion: MosaicProject.currentSchemaVersion + 1)
+        let data = try JSONEncoder().encode(future)
+        XCTAssertThrowsError(try DefaultProjectMigrator().migrate(data: data)) { error in
+            XCTAssertEqual(
+                error as? ProjectStoreError,
+                .unsupportedSchema(MosaicProject.currentSchemaVersion + 1)
+            )
+        }
+    }
 }

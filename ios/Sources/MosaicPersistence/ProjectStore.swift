@@ -23,9 +23,11 @@ public actor JSONProjectStore: ProjectStoring {
     private let directory: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let migrator: any ProjectMigrating
 
-    public init(directory: URL) {
+    public init(directory: URL, migrator: any ProjectMigrating = DefaultProjectMigrator()) {
         self.directory = directory
+        self.migrator = migrator
         self.encoder = JSONEncoder()
         self.encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         self.decoder = JSONDecoder()
@@ -34,11 +36,7 @@ public actor JSONProjectStore: ProjectStoring {
     public func load(id: UUID) throws -> MosaicProject? {
         let url = fileURL(for: id)
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-        let project = try decoder.decode(MosaicProject.self, from: Data(contentsOf: url))
-        guard project.schemaVersion <= MosaicProject.currentSchemaVersion else {
-            throw ProjectStoreError.unsupportedSchema(project.schemaVersion)
-        }
-        return project
+        return try decodeProject(from: url)
     }
 
     public func save(_ project: MosaicProject) throws {
@@ -70,12 +68,7 @@ public actor JSONProjectStore: ProjectStoring {
         var unreadableProjectCount = 0
         for file in files {
             do {
-                let project = try decoder.decode(MosaicProject.self, from: Data(contentsOf: file))
-                guard project.schemaVersion <= MosaicProject.currentSchemaVersion else {
-                    unreadableProjectCount += 1
-                    continue
-                }
-                projects.append(project)
+                projects.append(try decodeProject(from: file))
             } catch {
                 unreadableProjectCount += 1
             }
@@ -87,10 +80,17 @@ public actor JSONProjectStore: ProjectStoring {
     private func fileURL(for id: UUID) -> URL {
         directory.appendingPathComponent(id.uuidString).appendingPathExtension("json")
     }
+
+    private func decodeProject(from url: URL) throws -> MosaicProject {
+        let migrated = try migrator.migrate(data: Data(contentsOf: url))
+        return try decoder.decode(MosaicProject.self, from: migrated)
+    }
 }
 
-public enum ProjectStoreError: Error, Equatable {
+public enum ProjectStoreError: Error, Equatable, Sendable {
     case unsupportedSchema(Int)
+    case invalidDocument
+    case noMigrationPath(from: Int, to: Int)
 }
 
 public actor InMemoryProjectStore: ProjectStoring {
