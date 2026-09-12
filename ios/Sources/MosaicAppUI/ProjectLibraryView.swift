@@ -37,7 +37,7 @@ public struct ProjectLibraryView: View {
                         .buttonStyle(.plain)
                         .accessibilityHint("Continues this mosaic")
                     }
-                    .listStyle(.insetGrouped)
+                    .listStyle(.plain)
                 }
             }
             .navigationTitle("Your mosaics")
