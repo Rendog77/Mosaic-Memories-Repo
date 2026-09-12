@@ -12,9 +12,8 @@ jobs:
       run:
         working-directory: ios
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Show Swift version
         run: swift --version
       - name: Run package tests
         run: swift test
-

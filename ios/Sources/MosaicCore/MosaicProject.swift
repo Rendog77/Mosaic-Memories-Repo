@@ -14,7 +14,7 @@ public struct MosaicProject: Codable, Equatable, Identifiable, Sendable {
 
     public init(
         id: UUID = UUID(),
-        schemaVersion: Int = currentSchemaVersion,
+        schemaVersion: Int = MosaicProject.currentSchemaVersion,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         title: String = "Untitled Mosaic",
@@ -60,7 +60,7 @@ public struct MosaicRecipe: Codable, Equatable, Sendable {
     public var replacements: [TileCoordinate: AssetReference]
 
     public init(
-        engineVersion: Int = currentEngineVersion,
+        engineVersion: Int = MosaicRecipe.currentEngineVersion,
         columns: Int = 50,
         likeness: Double = 0.5,
         repeatWindow: Int = 8,
@@ -83,4 +83,3 @@ public struct TileCoordinate: Codable, Equatable, Hashable, Sendable {
         self.row = row
     }
 }
-
