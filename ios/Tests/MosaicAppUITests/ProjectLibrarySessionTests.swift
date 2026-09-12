@@ -16,4 +16,19 @@ final class ProjectLibrarySessionTests: XCTestCase {
         XCTAssertEqual(session.projects.map(\.title), ["Newer", "Older"])
         XCTAssertNil(session.message)
     }
+
+    func testRenameAndDeleteUpdateTheCatalogue() async {
+        let project = MosaicProject(title: "Original")
+        let store = InMemoryProjectStore(projects: [project])
+        let session = ProjectLibrarySession(store: store)
+
+        await session.rename(project, to: "  Holiday memories  ")
+        XCTAssertEqual(session.projects.first?.title, "Holiday memories")
+
+        guard let renamed = session.projects.first else {
+            return XCTFail("Expected renamed project")
+        }
+        await session.delete(renamed)
+        XCTAssertTrue(session.projects.isEmpty)
+    }
 }

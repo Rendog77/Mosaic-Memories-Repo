@@ -22,4 +22,10 @@ final class CreationWorkflowTests: XCTestCase {
         try workflow.confirmReviewedSources()
         XCTAssertEqual(workflow.step, .preview)
     }
+
+    func testBlankProjectNameFallsBackToUntitled() {
+        var workflow = CreationWorkflow(project: MosaicProject(title: "Original"))
+        workflow.renameProject(to: "   ")
+        XCTAssertEqual(workflow.project.title, "Untitled Mosaic")
+    }
 }

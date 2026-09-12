@@ -31,4 +31,26 @@ public final class ProjectLibrarySession: ObservableObject {
             message = "Saved projects could not be loaded."
         }
     }
+
+    public func rename(_ project: MosaicProject, to title: String) async {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        var renamed = project
+        renamed.title = trimmed.isEmpty ? "Untitled Mosaic" : trimmed
+        renamed.updatedAt = Date()
+        do {
+            try await store.save(renamed)
+            await refresh()
+        } catch {
+            message = "The mosaic could not be renamed."
+        }
+    }
+
+    public func delete(_ project: MosaicProject) async {
+        do {
+            try await store.delete(id: project.id)
+            await refresh()
+        } catch {
+            message = "The mosaic could not be deleted."
+        }
+    }
 }

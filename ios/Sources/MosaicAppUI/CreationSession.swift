@@ -17,11 +17,12 @@ public final class CreationSession: ObservableObject {
     public init(
         store: any ProjectStoring,
         analytics: any AnalyticsRecording = NoOpAnalyticsRecorder(),
-        project: MosaicProject = .init()
+        project: MosaicProject = .init(),
+        step: CreationStep? = nil
     ) {
         self.store = store
         self.analytics = analytics
-        self.workflow = CreationWorkflow(project: project)
+        self.workflow = CreationWorkflow(project: project, step: step ?? Self.inferredStep(for: project))
     }
 
     public func startNewProject() async {
@@ -33,7 +34,7 @@ public final class CreationSession: ObservableObject {
         do {
             let projects = try await store.list()
             if let project = projects.first {
-                workflow = CreationWorkflow(project: project, step: inferredStep(for: project))
+                workflow = CreationWorkflow(project: project, step: Self.inferredStep(for: project))
             }
             message = nil
         } catch {
@@ -68,7 +69,12 @@ public final class CreationSession: ObservableObject {
         await persist()
     }
 
-    private func inferredStep(for project: MosaicProject) -> CreationStep {
+    public func renameProject(to title: String) async {
+        workflow.renameProject(to: title)
+        await persist()
+    }
+
+    private static func inferredStep(for project: MosaicProject) -> CreationStep {
         if project.hero == nil { return .hero }
         if project.sources.isEmpty { return .memories }
         return .preview

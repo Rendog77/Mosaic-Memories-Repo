@@ -49,6 +49,12 @@ public struct CreationWorkflow: Equatable, Sendable {
         self.step = step
     }
 
+    public mutating func renameProject(to title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        project.title = trimmed.isEmpty ? "Untitled Mosaic" : trimmed
+        touch()
+    }
+
     private mutating func touch() {
         project.updatedAt = Date()
     }

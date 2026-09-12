@@ -5,6 +5,9 @@ public struct ProjectLibraryView: View {
     @ObservedObject private var session: ProjectLibrarySession
     private let onNewProject: () -> Void
     private let onContinueProject: (MosaicProject) -> Void
+    @State private var projectToRename: MosaicProject?
+    @State private var projectToDelete: MosaicProject?
+    @State private var proposedTitle = ""
 
     public init(
         session: ProjectLibrarySession,
@@ -36,6 +39,15 @@ public struct ProjectLibraryView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityHint("Continues this mosaic")
+                        .contextMenu {
+                            Button("Rename", systemImage: "pencil") {
+                                proposedTitle = project.title
+                                projectToRename = project
+                            }
+                            Button("Delete", systemImage: "trash", role: .destructive) {
+                                projectToDelete = project
+                            }
+                        }
                     }
                     .listStyle(.plain)
                 }
@@ -60,6 +72,44 @@ public struct ProjectLibraryView: View {
         }
         .task { await session.refresh() }
         .refreshable { await session.refresh() }
+        .alert(
+            "Rename mosaic",
+            isPresented: isRenaming,
+            presenting: projectToRename
+        ) { project in
+            TextField("Project name", text: $proposedTitle)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                Task { await session.rename(project, to: proposedTitle) }
+            }
+        }
+        .confirmationDialog(
+            "Delete this mosaic?",
+            isPresented: isDeleting,
+            titleVisibility: .visible,
+            presenting: projectToDelete
+        ) { project in
+            Button("Delete “\(project.title)”", role: .destructive) {
+                Task { await session.delete(project) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("This removes the saved project recipe from this device. Your original photos are not deleted.")
+        }
+    }
+
+    private var isRenaming: Binding<Bool> {
+        Binding(
+            get: { projectToRename != nil },
+            set: { if !$0 { projectToRename = nil } }
+        )
+    }
+
+    private var isDeleting: Binding<Bool> {
+        Binding(
+            get: { projectToDelete != nil },
+            set: { if !$0 { projectToDelete = nil } }
+        )
     }
 }
 

@@ -24,7 +24,7 @@ The sequencing rule is: **prove that people value the artwork, then prove that s
 
 ## Phase 2 — App skeleton and persistence (weeks 2–4)
 
-**Status:** In progress. The platform-independent Swift package foundation, persistence contract, workflow state, analytics allowlist, tests, macOS CI, SwiftUI creation shell, adaptive design tokens, autosave/restoration, saved-project catalogue, recovery reporting, and photo-selection protocol boundaries are scaffolded. The Xcode application target, real PhotoPicker controls, and Apple simulator/device validation remain pending.
+**Status:** In progress. The platform-independent Swift package foundation, persistence contract, workflow state, analytics allowlist, tests, macOS CI, SwiftUI creation shell, root navigation, adaptive design tokens, autosave/restoration, saved-project catalogue and management, recovery reporting, and tested photo-selection protocol boundaries are scaffolded. The Xcode application target, real PhotoPicker controls, and Apple simulator/device validation remain pending.
 
 - Create the universal SwiftUI Xcode project and module boundaries described in `ios/README.md`.
 - Implement navigation, design tokens, local project recipes, migrations, dependency injection, CI, linting, and privacy-safe analytics allowlisting.

@@ -4,9 +4,11 @@ import SwiftUI
 
 public struct MosaicCreationView: View {
     @ObservedObject private var session: CreationSession
+    private let onClose: () -> Void
 
-    public init(session: CreationSession) {
+    public init(session: CreationSession, onClose: @escaping () -> Void = {}) {
         self.session = session
+        self.onClose = onClose
     }
 
     public var body: some View {
@@ -28,6 +30,11 @@ public struct MosaicCreationView: View {
             .frame(maxWidth: .infinity)
             .background(MosaicDesign.canvas.ignoresSafeArea())
             .navigationTitle("Mosaic Memories")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Your mosaics", action: onClose)
+                }
+            }
             .overlay(alignment: .topTrailing) {
                 if session.isSaving {
                     ProgressView("Saving")
@@ -36,7 +43,6 @@ public struct MosaicCreationView: View {
                 }
             }
         }
-        .task { await session.restoreMostRecentProject() }
     }
 
     @ViewBuilder
@@ -138,4 +144,3 @@ private struct StepCard: View {
         .accessibilityElement(children: .contain)
     }
 }
-
