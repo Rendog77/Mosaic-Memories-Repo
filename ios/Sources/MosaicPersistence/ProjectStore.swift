@@ -16,10 +16,8 @@ public actor JSONProjectStore: ProjectStoring {
     public init(directory: URL) {
         self.directory = directory
         self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
         self.encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
     }
 
     public func load(id: UUID) throws -> MosaicProject? {
@@ -63,4 +61,3 @@ public actor JSONProjectStore: ProjectStoring {
 public enum ProjectStoreError: Error, Equatable {
     case unsupportedSchema(Int)
 }
-

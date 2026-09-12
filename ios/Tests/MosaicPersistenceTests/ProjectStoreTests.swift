@@ -15,6 +15,8 @@ final class ProjectStoreTests: XCTestCase {
         let projects = try await store.list()
         XCTAssertEqual(loaded, project)
         XCTAssertEqual(projects, [project])
+        XCTAssertEqual(loaded?.createdAt.timeIntervalSinceReferenceDate, project.createdAt.timeIntervalSinceReferenceDate)
+        XCTAssertEqual(loaded?.updatedAt.timeIntervalSinceReferenceDate, project.updatedAt.timeIntervalSinceReferenceDate)
         try await store.delete(id: project.id)
         let deleted = try await store.load(id: project.id)
         XCTAssertNil(deleted)
