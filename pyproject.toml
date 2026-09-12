@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mosaic-memories-prototype"
+version = "0.1.0"
+description = "Desktop proof-of-concept for the Mosaic Memories photomosaic engine"
+requires-python = ">=3.11"
+dependencies = ["Pillow>=10,<13"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
