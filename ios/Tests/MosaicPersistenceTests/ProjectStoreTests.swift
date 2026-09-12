@@ -21,4 +21,31 @@ final class ProjectStoreTests: XCTestCase {
         let deleted = try await store.load(id: project.id)
         XCTAssertNil(deleted)
     }
+
+    func testCatalogReportsCorruptAndFutureProjects() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("not-json".utf8).write(to: directory.appendingPathComponent("broken.json"))
+        let future = MosaicProject(schemaVersion: MosaicProject.currentSchemaVersion + 1, title: "From the future")
+        try JSONEncoder().encode(future).write(to: directory.appendingPathComponent("future.json"))
+        let valid = MosaicProject(title: "Valid")
+        let store = JSONProjectStore(directory: directory)
+        try await store.save(valid)
+
+        let catalog = try await store.catalog()
+
+        XCTAssertEqual(catalog.projects, [valid])
+        XCTAssertEqual(catalog.unreadableProjectCount, 2)
+    }
+
+    func testInMemoryStoreSupportsPreviewAndTests() async throws {
+        let project = MosaicProject(title: "Preview")
+        let store = InMemoryProjectStore()
+        try await store.save(project)
+        let loaded = try await store.load(id: project.id)
+        let catalog = try await store.catalog()
+        XCTAssertEqual(loaded, project)
+        XCTAssertEqual(catalog, ProjectCatalog(projects: [project]))
+    }
 }

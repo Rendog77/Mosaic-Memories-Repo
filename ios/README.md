@@ -13,6 +13,10 @@ This folder contains the platform-independent production foundation as a Swift P
 - A SwiftUI creation shell covering all six workflow stages.
 - Adaptive layout tokens, Dynamic Type-compatible text, and labelled progress/status feedback.
 - Autosave and most-recent-project restoration through the persistence protocol.
+- Saved-project catalogue UI with new/continue entry points and recovery messaging.
+- In-memory project storage for previews and isolated tests.
+- Explicit PhotoPicker/PhotoKit-facing protocols without broad photo permission dependencies.
+- Detection and reporting of corrupt or future-version project files.
 
 Photo-library integration remains behind the next platform boundary. The current hero and source buttons deliberately use fixture references so the complete navigation/persistence shell can be compiled and tested before PhotoKit is introduced. The package cannot be compiled locally because Apple Swift/Xcode tooling is unavailable on Windows; GitHub Actions provides the macOS build gate.
 

@@ -13,5 +13,13 @@ final class CreationWorkflowTests: XCTestCase {
         var workflow = CreationWorkflow()
         XCTAssertThrowsError(try workflow.confirmSources([], minimum: 100))
     }
-}
 
+    func testSourcesAreReviewedBeforeConfirmation() throws {
+        var workflow = CreationWorkflow()
+        let sources = (0..<100).map { AssetReference(id: "source-\($0)", origin: .testFixture) }
+        workflow.reviewSources(sources)
+        XCTAssertEqual(workflow.step, .sourceReview)
+        try workflow.confirmReviewedSources()
+        XCTAssertEqual(workflow.step, .preview)
+    }
+}
