@@ -11,9 +11,18 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
         self.directory = directory
     }
 
-    public func registerImportedData(_ data: Data) throws -> AssetReference {
+    public func registerImportedData(
+        _ data: Data,
+        sourceIdentifier: String = "selected-photo"
+    ) throws -> AssetReference {
         guard !data.isEmpty else {
-            throw PhotoSelectionError.assetUnavailable("selected-photo")
+            throw PhotoSelectionError.assetUnavailable(sourceIdentifier)
+        }
+        guard
+            let source = CGImageSourceCreateWithData(data as CFData, nil),
+            CGImageSourceGetCount(source) > 0
+        else {
+            throw PhotoSelectionError.unsupportedFormat(sourceIdentifier)
         }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let identifier = UUID().uuidString

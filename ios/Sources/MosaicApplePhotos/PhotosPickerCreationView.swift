@@ -21,7 +21,12 @@ extension PhotosPickerAssetStore {
                     throw PhotoSelectionError.assetUnavailable(item.itemIdentifier ?? "selected-photo")
                 }
                 try Task.checkCancellation()
-                references.append(try registerImportedData(data))
+                references.append(
+                    try registerImportedData(
+                        data,
+                        sourceIdentifier: item.itemIdentifier ?? "selected-photo"
+                    )
+                )
                 await onProgress(.init(completedCount: index + 1, totalCount: items.count))
                 try Task.checkCancellation()
             }
@@ -100,6 +105,8 @@ public struct PhotosPickerCreationView: View {
                 importMessage = nil
             } catch let error as PhotoSelectionError where error == .selectionCancelled {
                 importMessage = nil
+            } catch let error as PhotoSelectionError {
+                importMessage = message(for: error, selectionName: "hero photo")
             } catch {
                 importMessage = "The selected hero photo could not be imported. Please try again."
             }
@@ -119,6 +126,9 @@ public struct PhotosPickerCreationView: View {
             } catch let error as PhotoSelectionError where error == .selectionCancelled {
                 await assetStore.discardCachedAssets(importedReferences)
                 importMessage = nil
+            } catch let error as PhotoSelectionError {
+                await assetStore.discardCachedAssets(importedReferences)
+                importMessage = message(for: error, selectionName: "photo")
             } catch {
                 await assetStore.discardCachedAssets(importedReferences)
                 importMessage = "One or more selected photos could not be imported. Please try again."
@@ -172,6 +182,23 @@ public struct PhotosPickerCreationView: View {
         heroItem = nil
         sourceItems = []
         importMessage = nil
+    }
+
+    private func message(for error: PhotoSelectionError, selectionName: String) -> String {
+        switch error {
+        case .unsupportedFormat:
+            return "The selected \(selectionName) is not in a supported image format. Choose another and try again."
+        case .assetUnavailable:
+            return "The selected \(selectionName) is unavailable. Choose another and try again."
+        case .iCloudDownloadFailed:
+            return "The selected \(selectionName) could not be downloaded from iCloud. Check your connection and retry."
+        case .permissionDenied:
+            return "Photo access was denied. Selected photos can be chosen without full-library access."
+        case .selectionCancelled:
+            return ""
+        case .transferFailed:
+            return "The selected \(selectionName) could not be imported. Please try again."
+        }
     }
 }
 #endif

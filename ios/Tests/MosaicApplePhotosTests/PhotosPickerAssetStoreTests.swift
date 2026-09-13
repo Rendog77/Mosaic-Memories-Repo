@@ -41,6 +41,24 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         }
     }
 
+    func testUnsupportedImageIsRejectedBeforeCaching() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PhotosPickerAssetStore(directory: directory)
+
+        do {
+            _ = try await store.registerImportedData(
+                Data("not-an-image".utf8),
+                sourceIdentifier: "unsupported-item"
+            )
+            XCTFail("Expected unsupported image failure")
+        } catch let error as PhotoSelectionError {
+            XCTAssertEqual(error, .unsupportedFormat("unsupported-item"))
+        }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+    }
+
     func testBatchRegistrationRemovesEarlierAssetsWhenALaterItemFails() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

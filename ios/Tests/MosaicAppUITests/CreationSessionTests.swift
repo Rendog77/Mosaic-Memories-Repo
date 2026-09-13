@@ -128,6 +128,21 @@ final class CreationSessionTests: XCTestCase {
         XCTAssertEqual(session.message, "A photo could not be downloaded from iCloud. Check your connection and try again.")
     }
 
+    func testUnsupportedFormatProvidesReplacementGuidance() async {
+        let session = CreationSession(
+            store: InMemoryProjectStore(),
+            heroSelector: HeroSelectorStub(result: .failure(.unsupportedFormat("hero-item")))
+        )
+
+        await session.requestHeroSelection()
+
+        XCTAssertEqual(session.photoSelectionState, .failed(.unsupportedFormat("hero-item")))
+        XCTAssertEqual(
+            session.message,
+            "A selected file is not a supported image. Choose another photo and try again."
+        )
+    }
+
     func testOversizedSelectionIsRejectedRatherThanSilentlyTruncated() async {
         let sources = (0..<4).map { AssetReference(id: "source-\($0)", origin: .testFixture) }
         let session = CreationSession(
