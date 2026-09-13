@@ -17,5 +17,7 @@ jobs:
         run: swift --version
       - name: Build package including SwiftUI shell
         run: swift build
+      - name: Build Apple Photos integration for iOS Simulator
+        run: xcodebuild -scheme MosaicApplePhotos -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
       - name: Run package tests
         run: swift test

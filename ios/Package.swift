@@ -27,7 +27,7 @@ let package = Package(
         ),
         .target(
             name: "MosaicApplePhotos",
-            dependencies: ["MosaicCore", "MosaicFeatures"]
+            dependencies: ["MosaicCore", "MosaicFeatures", "MosaicAppUI"]
         ),
         .testTarget(name: "MosaicCoreTests", dependencies: ["MosaicCore"]),
         .testTarget(name: "MosaicPersistenceTests", dependencies: ["MosaicCore", "MosaicPersistence"]),

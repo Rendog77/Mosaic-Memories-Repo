@@ -13,10 +13,14 @@ public struct MosaicCreationView: View {
     @StateObject private var heroModel: HeroPhotoViewModel
     @StateObject private var sourceModel: SourceReviewViewModel
     private let onClose: () -> Void
+    private let onChooseHero: (() -> Void)?
+    private let onChooseSources: (() -> Void)?
 
     public init(
         session: CreationSession,
         assetLoader: any PhotoAssetLoading = UnavailablePhotoAssetLoader(),
+        onChooseHero: (() -> Void)? = nil,
+        onChooseSources: (() -> Void)? = nil,
         onClose: @escaping () -> Void = {}
     ) {
         self.session = session
@@ -27,6 +31,8 @@ public struct MosaicCreationView: View {
                 loader: assetLoader
             )
         )
+        self.onChooseHero = onChooseHero
+        self.onChooseSources = onChooseSources
         self.onClose = onClose
     }
 
@@ -68,11 +74,11 @@ public struct MosaicCreationView: View {
     private var stepContent: some View {
         switch session.workflow.step {
         case .hero:
-            HeroSelectionScreen(session: session, model: heroModel)
+            HeroSelectionScreen(session: session, model: heroModel, onChooseHero: onChooseHero)
         case .memories:
-            MemorySelectionScreen(session: session, heroModel: heroModel)
+            MemorySelectionScreen(session: session, heroModel: heroModel, onChooseSources: onChooseSources)
         case .sourceReview:
-            SourceReviewScreen(session: session, model: sourceModel)
+            SourceReviewScreen(session: session, model: sourceModel, onChooseSources: onChooseSources)
         case .preview:
             StepCard(
                 title: "Create your mosaic",
@@ -104,6 +110,7 @@ public struct MosaicCreationView: View {
 private struct HeroSelectionScreen: View {
     @ObservedObject var session: CreationSession
     @ObservedObject var model: HeroPhotoViewModel
+    let onChooseHero: (() -> Void)?
 
     var body: some View {
         VStack(spacing: MosaicDesign.standardSpacing) {
@@ -117,10 +124,14 @@ private struct HeroSelectionScreen: View {
                 .frame(maxWidth: 420, maxHeight: 320)
                 .aspectRatio(4 / 3, contentMode: .fit)
             Button("Choose hero photo") {
-                Task {
-                    await session.requestHeroSelection()
-                    if let reference = session.workflow.project.hero {
-                        await model.load(reference)
+                if let onChooseHero {
+                    onChooseHero()
+                } else {
+                    Task {
+                        await session.requestHeroSelection()
+                        if let reference = session.workflow.project.hero {
+                            await model.load(reference)
+                        }
                     }
                 }
             }
@@ -135,6 +146,7 @@ private struct HeroSelectionScreen: View {
 private struct MemorySelectionScreen: View {
     @ObservedObject var session: CreationSession
     @ObservedObject var heroModel: HeroPhotoViewModel
+    let onChooseSources: (() -> Void)?
 
     var body: some View {
         VStack(spacing: MosaicDesign.standardSpacing) {
@@ -150,7 +162,11 @@ private struct MemorySelectionScreen: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button("Choose source photos") {
-                Task { await session.requestSourceSelection() }
+                if let onChooseSources {
+                    onChooseSources()
+                } else {
+                    Task { await session.requestSourceSelection() }
+                }
             }
             .buttonStyle(.borderedProminent)
             .tint(MosaicDesign.accent)
@@ -167,6 +183,7 @@ private struct MemorySelectionScreen: View {
 private struct SourceReviewScreen: View {
     @ObservedObject var session: CreationSession
     @ObservedObject var model: SourceReviewViewModel
+    let onChooseSources: (() -> Void)?
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: MosaicDesign.compactSpacing)]
 
     var body: some View {
@@ -181,9 +198,13 @@ private struct SourceReviewScreen: View {
                 }
                 Spacer()
                 Button("Add photos", systemImage: "plus") {
-                    Task {
-                        await session.requestAdditionalSources()
-                        model.replaceReferences(session.workflow.project.sources)
+                    if let onChooseSources {
+                        onChooseSources()
+                    } else {
+                        Task {
+                            await session.requestAdditionalSources()
+                            model.replaceReferences(session.workflow.project.sources)
+                        }
                     }
                 }
             }
