@@ -28,6 +28,8 @@ This folder contains the platform-independent production foundation as a Swift P
 - Oversized selections are rejected visibly rather than silently truncated.
 - Analytics values are constrained to coarse allowlists; filenames and free text are rejected.
 - Creation-flow analytics tests prove that photo identifiers never enter emitted events.
+- Reusable hero and source-review thumbnail view models with bounded pixel requests.
+- Explicit idle/loading/loaded/failed thumbnail states and retry of failed iCloud assets.
 
 Photo-library integration remains behind the next platform boundary. The current hero and source buttons deliberately use fixture references so the complete navigation/persistence shell can be compiled and tested before PhotoKit is introduced. The package cannot be compiled locally because Apple Swift/Xcode tooling is unavailable on Windows; GitHub Actions provides the macOS build gate.
 
