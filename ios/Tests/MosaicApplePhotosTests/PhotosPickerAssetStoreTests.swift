@@ -35,6 +35,38 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         }
     }
 
+    func testBatchRegistrationRemovesEarlierAssetsWhenALaterItemFails() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PhotosPickerAssetStore(directory: directory)
+        let png = try XCTUnwrap(Data(base64Encoded: Self.onePixelPNG))
+
+        do {
+            _ = try await store.registerImportedData([png, Data()])
+            XCTFail("Expected the empty selection to fail")
+        } catch let error as PhotoSelectionError {
+            XCTAssertEqual(error, .assetUnavailable("selected-photo"))
+        }
+
+        let cachedFiles = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(cachedFiles.isEmpty)
+    }
+
+    func testBatchRegistrationReturnsEveryImportedReference() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PhotosPickerAssetStore(directory: directory)
+        let png = try XCTUnwrap(Data(base64Encoded: Self.onePixelPNG))
+
+        let references = try await store.registerImportedData([png, png])
+
+        XCTAssertEqual(references.count, 2)
+        XCTAssertEqual(Set(references.map(\.id)).count, 2)
+        XCTAssertTrue(references.allSatisfy { $0.origin == .photoPicker })
+    }
+
     private static let onePixelPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 }
-

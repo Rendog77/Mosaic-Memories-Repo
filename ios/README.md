@@ -39,6 +39,7 @@ This folder contains the platform-independent production foundation as a Swift P
 - An isolated `MosaicApplePhotos` adapter for explicitly selected `PhotosPickerItem` values.
 - App-controlled picker-asset caching with bounded ImageIO JPEG thumbnail generation.
 - Selected-photo imports produce opaque app identifiers rather than exposing library identifiers.
+- Multi-photo imports are atomic: failed transfers and cache writes leave no partially imported selection behind.
 - The `PhotosPickerItem` bridge is compiled only for iOS/iPadOS; its cache and ImageIO components remain covered by macOS CI.
 
 Photo-library integration remains behind the next platform boundary. The current hero and source buttons deliberately use fixture references so the complete navigation/persistence shell can be compiled and tested before PhotoKit is introduced. The package cannot be compiled locally because Apple Swift/Xcode tooling is unavailable on Windows; GitHub Actions provides the macOS build gate.

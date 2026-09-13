@@ -24,6 +24,21 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
         return AssetReference(id: identifier, origin: .photoPicker)
     }
 
+    public func registerImportedData(_ items: [Data]) throws -> [AssetReference] {
+        var references: [AssetReference] = []
+        do {
+            for data in items {
+                references.append(try registerImportedData(data))
+            }
+            return references
+        } catch {
+            for reference in references {
+                try? removeCachedAsset(reference)
+            }
+            throw error
+        }
+    }
+
     public func thumbnail(for reference: AssetReference, maximumPixelSize: Int) throws -> Data {
         guard
             reference.origin == .photoPicker,
@@ -89,20 +104,20 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
 #if os(iOS) && canImport(PhotosUI)
 extension PhotosPickerAssetStore {
     public func importSelection(_ items: [PhotosPickerItem]) async throws -> [AssetReference] {
-        var references: [AssetReference] = []
+        var importedData: [Data] = []
         for item in items {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self) else {
                     throw PhotoSelectionError.assetUnavailable(item.itemIdentifier ?? "selected-photo")
                 }
-                references.append(try registerImportedData(data))
+                importedData.append(data)
             } catch let error as PhotoSelectionError {
                 throw error
             } catch {
                 throw PhotoSelectionError.transferFailed(item.itemIdentifier ?? "selected-photo")
             }
         }
-        return references
+        return try registerImportedData(importedData)
     }
 }
 #endif
