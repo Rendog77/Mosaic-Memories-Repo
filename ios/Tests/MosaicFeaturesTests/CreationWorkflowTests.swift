@@ -28,4 +28,16 @@ final class CreationWorkflowTests: XCTestCase {
         workflow.renameProject(to: "   ")
         XCTAssertEqual(workflow.project.title, "Untitled Mosaic")
     }
+
+    func testRemovingSourceReturnsToReviewAndUpdatesReadiness() throws {
+        var workflow = CreationWorkflow()
+        let sources = (0..<100).map { AssetReference(id: "source-\($0)", origin: .testFixture) }
+        try workflow.confirmSources(sources)
+        XCTAssertEqual(workflow.sourceReadiness(), .ready(count: 100))
+
+        XCTAssertTrue(workflow.removeSource(id: "source-0"))
+        XCTAssertEqual(workflow.step, .sourceReview)
+        XCTAssertEqual(workflow.sourceReadiness(), .needsMore(required: 100, actual: 99))
+        XCTAssertFalse(workflow.removeSource(id: "missing"))
+    }
 }

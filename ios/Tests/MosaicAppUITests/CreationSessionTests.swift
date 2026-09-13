@@ -154,4 +154,36 @@ final class CreationSessionTests: XCTestCase {
             XCTAssertNoThrow(try AnalyticsEventValidator().validate(event))
         }
     }
+
+    func testAddingAndRemovingSourcesPersistsCombinedReviewSet() async throws {
+        let initial = (0..<60).map { AssetReference(id: "initial-\($0)", origin: .testFixture) }
+        let additional = (0..<40).map { AssetReference(id: "additional-\($0)", origin: .testFixture) }
+        let store = InMemoryProjectStore()
+        let session = CreationSession(store: store)
+
+        await session.reviewSources(initial)
+        try await session.addSources(additional)
+        XCTAssertEqual(session.sourceReadiness(), .ready(count: 100))
+        await session.removeSource(id: "initial-0")
+        XCTAssertEqual(session.sourceReadiness(), .needsMore(required: 100, actual: 99))
+
+        let saved = try await store.load(id: session.workflow.project.id)
+        XCTAssertEqual(saved?.sources.count, 99)
+    }
+
+    func testAddingDuplicateSourceDoesNotModifyProject() async {
+        let source = AssetReference(id: "duplicate", origin: .testFixture)
+        let session = CreationSession(store: InMemoryProjectStore())
+        await session.reviewSources([source])
+
+        do {
+            try await session.addSources([source])
+            XCTFail("Expected duplicate validation failure")
+        } catch let error as SourceSelectionValidationError {
+            XCTAssertEqual(error, .duplicateReferences(["duplicate"]))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(session.workflow.project.sources, [source])
+    }
 }

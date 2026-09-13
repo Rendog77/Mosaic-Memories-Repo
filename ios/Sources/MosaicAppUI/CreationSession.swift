@@ -108,6 +108,40 @@ public final class CreationSession: ObservableObject {
         }
     }
 
+    public func requestAdditionalSources(request: SourceSelectionRequest = .init()) async {
+        photoSelectionState = .selectingSources
+        message = nil
+        do {
+            let additional = try await sourceSelector.selectSources(request: request)
+            try await addSources(additional, request: request)
+            photoSelectionState = .idle
+        } catch let error as SourceSelectionValidationError {
+            handleSourceValidationError(error)
+        } catch let error as PhotoSelectionError {
+            handleSelectionError(error)
+        } catch {
+            handleSelectionError(.assetUnavailable("Unexpected photo selection failure"))
+        }
+    }
+
+    public func addSources(
+        _ additional: [AssetReference],
+        request: SourceSelectionRequest = .init()
+    ) async throws {
+        let combined = workflow.project.sources + additional
+        let validated = try sourceValidator.validate(combined, for: request)
+        await reviewSources(validated)
+    }
+
+    public func removeSource(id: String) async {
+        guard workflow.removeSource(id: id) else { return }
+        await persist()
+    }
+
+    public func sourceReadiness(minimum: Int = 100) -> SourceSetReadiness {
+        workflow.sourceReadiness(minimum: minimum)
+    }
+
     public func confirmSources(minimum: Int = 100) async {
         do {
             try workflow.confirmReviewedSources(minimum: minimum)

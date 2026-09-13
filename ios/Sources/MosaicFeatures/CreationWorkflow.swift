@@ -10,6 +10,11 @@ public enum CreationStep: Int, CaseIterable, Codable, Sendable {
     case export
 }
 
+public enum SourceSetReadiness: Equatable, Sendable {
+    case needsMore(required: Int, actual: Int)
+    case ready(count: Int)
+}
+
 public struct CreationWorkflow: Equatable, Sendable {
     public private(set) var project: MosaicProject
     public private(set) var step: CreationStep
@@ -34,6 +39,23 @@ public struct CreationWorkflow: Equatable, Sendable {
         project.sources = sources
         touch()
         step = .sourceReview
+    }
+
+    @discardableResult
+    public mutating func removeSource(id: String) -> Bool {
+        let originalCount = project.sources.count
+        project.sources.removeAll { $0.id == id }
+        guard project.sources.count != originalCount else { return false }
+        touch()
+        step = .sourceReview
+        return true
+    }
+
+    public func sourceReadiness(minimum: Int = 100) -> SourceSetReadiness {
+        if project.sources.count < minimum {
+            return .needsMore(required: minimum, actual: project.sources.count)
+        }
+        return .ready(count: project.sources.count)
     }
 
     public mutating func confirmReviewedSources(minimum: Int = 100) throws {

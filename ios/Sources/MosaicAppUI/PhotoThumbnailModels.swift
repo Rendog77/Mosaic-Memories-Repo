@@ -107,9 +107,22 @@ public final class SourceReviewViewModel: ObservableObject {
         }
     }
 
+    public func replaceReferences(_ references: [AssetReference]) {
+        var existingStates: [String: ThumbnailLoadingState] = [:]
+        for item in items {
+            existingStates[item.id] = item.state
+        }
+        items = references.map {
+            SourceThumbnailItem(reference: $0, state: existingStates[$0.id] ?? .idle)
+        }
+    }
+
+    public func remove(id: String) {
+        items.removeAll { $0.id == id }
+    }
+
     private func update(id: String, state: ThumbnailLoadingState) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         items[index].state = state
     }
 }
-

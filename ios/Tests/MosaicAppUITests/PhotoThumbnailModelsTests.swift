@@ -73,5 +73,20 @@ final class PhotoThumbnailModelsTests: XCTestCase {
         await model.loadThumbnail(for: "missing")
         XCTAssertTrue(model.items.isEmpty)
     }
-}
 
+    func testReplacingReferencesPreservesExistingThumbnailState() async {
+        let data = Data([7])
+        let loader = ThumbnailLoaderStub(results: ["one": [.success(data)]])
+        let one = AssetReference(id: "one", origin: .testFixture)
+        let two = AssetReference(id: "two", origin: .testFixture)
+        let model = SourceReviewViewModel(references: [one], loader: loader)
+        await model.loadThumbnail(for: "one")
+
+        model.replaceReferences([one, two])
+
+        XCTAssertEqual(model.items[0].state, .loaded(data))
+        XCTAssertEqual(model.items[1].state, .idle)
+        model.remove(id: "one")
+        XCTAssertEqual(model.items.map(\.id), ["two"])
+    }
+}
