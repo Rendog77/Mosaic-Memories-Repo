@@ -61,6 +61,12 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
         }
     }
 
+    public func discardCachedAssets(_ references: [AssetReference]) {
+        for reference in references where reference.origin == .photoPicker {
+            try? removeCachedAsset(reference)
+        }
+    }
+
     private func fileURL(for identifier: String) -> URL {
         directory.appendingPathComponent(identifier).appendingPathExtension("asset")
     }

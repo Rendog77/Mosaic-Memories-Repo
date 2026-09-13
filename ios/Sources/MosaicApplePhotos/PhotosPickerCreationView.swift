@@ -70,9 +70,13 @@ public struct PhotosPickerCreationView: View {
         .task(id: heroItem) {
             guard let heroItem else { return }
             do {
+                let previousHero = session.workflow.project.hero
                 let references = try await assetStore.importSelection([heroItem])
                 if let reference = references.first {
                     await session.selectHero(reference)
+                }
+                if let previousHero, previousHero.origin == .photoPicker {
+                    await assetStore.discardCachedAssets([previousHero])
                 }
                 importMessage = nil
             } catch {
@@ -82,15 +86,17 @@ public struct PhotosPickerCreationView: View {
         }
         .task(id: sourceItems) {
             guard !sourceItems.isEmpty else { return }
+            var importedReferences: [AssetReference] = []
             do {
-                let references = try await assetStore.importSelection(sourceItems)
+                importedReferences = try await assetStore.importSelection(sourceItems)
                 if session.workflow.step == .sourceReview {
-                    try await session.addSources(references)
+                    try await session.addSources(importedReferences)
                 } else {
-                    await session.reviewSources(references)
+                    await session.reviewSources(importedReferences)
                 }
                 importMessage = nil
             } catch {
+                await assetStore.discardCachedAssets(importedReferences)
                 importMessage = "One or more selected photos could not be imported. Please try again."
             }
             sourceItems = []

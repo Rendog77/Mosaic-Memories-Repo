@@ -47,7 +47,7 @@ This folder contains the production modules as a Swift Package plus a declarativ
 - CI boots available iPhone and iPad Simulators, installs the application, and verifies both a cold launch and a process relaunch on each device class.
 - Simulator smoke tests seed a versioned project recipe and require the production store to recover it on both launches.
 
-Photo-library integration remains behind the next platform boundary. The current hero and source buttons deliberately use fixture references so the complete navigation/persistence shell can be compiled and tested before PhotoKit is introduced. The package cannot be compiled locally because Apple Swift/Xcode tooling is unavailable on Windows; GitHub Actions provides the macOS build gate.
+The manual path uses SwiftUI PhotosPicker and receives only the items a person explicitly selects; it does not request broad library permission. Apple Swift/Xcode tooling remains unavailable locally on Windows, so GitHub Actions provides package, application, and simulator build gates.
 
 ## Initial macOS setup
 

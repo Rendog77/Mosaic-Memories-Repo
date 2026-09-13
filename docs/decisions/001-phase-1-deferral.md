@@ -10,7 +10,11 @@ The current development environment is Windows-only. Xcode, SwiftUI previews, Ph
 
 ## Decision
 
-Proceed with the platform-independent Phase 2 foundation as a Swift Package: domain models, module boundaries, project persistence contract, creation workflow, privacy-safe analytics types, tests, and macOS CI. Do not claim Gate G1 or Gate G2 has passed. Do not lock the deployment target beyond the provisional package minimum or implement performance-dependent engine choices.
+Proceed with the platform-independent Phase 2 foundation as a Swift Package: domain models, module boundaries, project persistence contract, creation workflow, privacy-safe analytics types, tests, and macOS CI. At the time of this decision, do not claim Gate G1 or Gate G2 has passed. Do not lock the deployment target beyond the provisional package minimum or implement performance-dependent engine choices.
+
+## Amendment — 2026-09-13
+
+Hosted macOS CI now builds and launches the generated application on iPhone and iPad Simulators and verifies production project recovery across relaunch. This evidence closes Gate G2 for the provisional iOS 17 simulator floor; see `../gates/g2-app-skeleton.md`. Gate G1 and all physical-device measurements remain deferred and open.
 
 ## Consequences
 
@@ -24,4 +28,3 @@ Proceed with the platform-independent Phase 2 foundation as a Swift Package: dom
 - Successful `swift test` on macOS.
 - Xcode build on representative iPhone and iPad simulators.
 - Physical-device PhotoKit and rendering benchmarks from the deferred Phase 1 plan.
-

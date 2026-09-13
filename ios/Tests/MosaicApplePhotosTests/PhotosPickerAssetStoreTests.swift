@@ -91,5 +91,25 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         XCTAssertEqual(assetFiles.map(\.pathExtension), ["asset"])
     }
 
+    func testDiscardRemovesOnlyCachedPickerAssets() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PhotosPickerAssetStore(directory: directory)
+        let png = try XCTUnwrap(Data(base64Encoded: Self.onePixelPNG))
+        let cached = try await store.registerImportedData([png, png])
+
+        await store.discardCachedAssets([
+            cached[0],
+            AssetReference(id: "fixture", origin: .testFixture),
+            cached[1],
+        ])
+
+        let remaining = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertTrue(remaining.isEmpty)
+    }
+
     private static let onePixelPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 }

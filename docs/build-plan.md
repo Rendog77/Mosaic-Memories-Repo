@@ -24,15 +24,17 @@ The sequencing rule is: **prove that people value the artwork, then prove that s
 
 ## Phase 2 — App skeleton and persistence (weeks 2–4)
 
-**Status:** In progress. The platform-independent Swift package foundation, versioned persistence and migrations, workflow state, privacy-validated coarse analytics, tests, macOS CI, SwiftUI creation shell, root navigation, adaptive design tokens, autosave/restoration, saved-project catalogue and management, recovery reporting, dependency-injected photo selection, source-set validation, functional hero/source-review screens, and an isolated atomic PhotosPicker integration are scaffolded. The generated universal application target composes the library, creation flow, recipe storage, and selected-photo cache. CI installs it on both iPhone and iPad Simulators, verifies launch plus process relaunch, and requires a seeded project recipe to be decoded successfully after each launch. Interactive layout/selection validation and physical-device validation remain pending.
+**Status:** Complete for the provisional iOS 17 simulator floor. See `gates/g2-app-skeleton.md` for evidence and remaining risk.
 
 - Create the universal SwiftUI Xcode project and module boundaries described in `ios/README.md`.
 - Implement navigation, design tokens, local project recipes, migrations, dependency injection, CI, linting, and privacy-safe analytics allowlisting.
 - Add accessibility foundations and representative iPhone/iPad layouts.
 
-**Gate G2:** the empty walking skeleton runs on supported device classes and project state survives relaunch.
+**Gate G2: Passed 2026-09-13.** The empty walking skeleton runs on iPhone and iPad Simulators and project state survives relaunch.
 
 ## Phase 3 — Hero and manual sources (weeks 4–6)
+
+**Status:** In progress. Native selected-photo presentation, atomic private caching, thumbnail review, source sufficiency, and cleanup for replaced heroes and rejected source batches are implemented. Interactive picker, crop, format, iCloud progress, cancellation, and missing-asset validation remain pending.
 
 - Implement hero selection/crop and manual multi-selection without broad library permission.
 - Review, add/remove, and validate source sufficiency; handle orientation, formats, iCloud progress, cancellation, and missing assets.
