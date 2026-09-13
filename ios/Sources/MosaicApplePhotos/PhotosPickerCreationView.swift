@@ -1,6 +1,7 @@
 #if os(iOS)
 import Foundation
 import MosaicAppUI
+import MosaicCore
 import MosaicFeatures
 import PhotosUI
 import SwiftUI

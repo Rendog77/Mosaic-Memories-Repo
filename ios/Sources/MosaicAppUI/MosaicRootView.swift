@@ -27,10 +27,10 @@ public struct MosaicRootView: View {
     public var body: some View {
         Group {
             if let creationSession {
-                MosaicCreationView(session: creationSession, assetLoader: assetLoader) {
+                MosaicCreationView(session: creationSession, assetLoader: assetLoader, onClose: {
                     self.creationSession = nil
                     Task { await librarySession.refresh() }
-                }
+                })
             } else {
                 ProjectLibraryView(
                     session: librarySession,
