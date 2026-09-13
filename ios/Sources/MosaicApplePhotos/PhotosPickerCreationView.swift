@@ -7,21 +7,29 @@ import PhotosUI
 import SwiftUI
 
 extension PhotosPickerAssetStore {
-    public func importSelection(_ items: [PhotosPickerItem]) async throws -> [AssetReference] {
-        var importedData: [Data] = []
-        for item in items {
-            do {
+    public func importSelection(
+        _ items: [PhotosPickerItem],
+        onProgress: @Sendable (PhotoImportProgress) async -> Void = { _ in }
+    ) async throws -> [AssetReference] {
+        guard !items.isEmpty else { return [] }
+        var references: [AssetReference] = []
+        await onProgress(.init(completedCount: 0, totalCount: items.count))
+        do {
+            for (index, item) in items.enumerated() {
                 guard let data = try await item.loadTransferable(type: Data.self) else {
                     throw PhotoSelectionError.assetUnavailable(item.itemIdentifier ?? "selected-photo")
                 }
-                importedData.append(data)
-            } catch let error as PhotoSelectionError {
-                throw error
-            } catch {
-                throw PhotoSelectionError.transferFailed(item.itemIdentifier ?? "selected-photo")
+                references.append(try registerImportedData(data))
+                await onProgress(.init(completedCount: index + 1, totalCount: items.count))
             }
+            return references
+        } catch let error as PhotoSelectionError {
+            discardCachedAssets(references)
+            throw error
+        } catch {
+            discardCachedAssets(references)
+            throw PhotoSelectionError.transferFailed("selected-photo")
         }
-        return try registerImportedData(importedData)
     }
 }
 
@@ -35,6 +43,7 @@ public struct PhotosPickerCreationView: View {
     @State private var heroItem: PhotosPickerItem?
     @State private var sourceItems: [PhotosPickerItem] = []
     @State private var importMessage: String?
+    @State private var importProgress: PhotoImportProgress?
 
     public init(
         session: CreationSession,
@@ -57,6 +66,7 @@ public struct PhotosPickerCreationView: View {
             },
             onClose: onClose
         )
+        .disabled(importProgress != nil)
         .photosPicker(
             isPresented: $isChoosingHero,
             selection: $heroItem,
@@ -74,7 +84,7 @@ public struct PhotosPickerCreationView: View {
             guard let heroItem else { return }
             do {
                 let previousHero = session.workflow.project.hero
-                let references = try await assetStore.importSelection([heroItem])
+                let references = try await importItems([heroItem])
                 if let reference = references.first {
                     await session.selectHero(reference)
                 }
@@ -91,7 +101,7 @@ public struct PhotosPickerCreationView: View {
             guard !sourceItems.isEmpty else { return }
             var importedReferences: [AssetReference] = []
             do {
-                importedReferences = try await assetStore.importSelection(sourceItems)
+                importedReferences = try await importItems(sourceItems)
                 if session.workflow.step == .sourceReview {
                     try await session.addSources(importedReferences)
                 } else {
@@ -105,7 +115,20 @@ public struct PhotosPickerCreationView: View {
             sourceItems = []
         }
         .overlay(alignment: .bottom) {
-            if let importMessage {
+            if let importProgress {
+                VStack(spacing: 8) {
+                    ProgressView(value: importProgress.fractionCompleted)
+                        .frame(maxWidth: 280)
+                    Text("Importing \(importProgress.completedCount) of \(importProgress.totalCount) photos")
+                        .font(.footnote)
+                }
+                .padding()
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .padding()
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Importing photos")
+                .accessibilityValue("\(importProgress.completedCount) of \(importProgress.totalCount)")
+            } else if let importMessage {
                 Text(importMessage)
                     .font(.footnote)
                     .foregroundStyle(.red)
@@ -113,6 +136,15 @@ public struct PhotosPickerCreationView: View {
                     .background(.regularMaterial, in: Capsule())
                     .padding()
                     .accessibilityLabel("Notice: \(importMessage)")
+            }
+        }
+    }
+
+    private func importItems(_ items: [PhotosPickerItem]) async throws -> [AssetReference] {
+        defer { importProgress = nil }
+        return try await assetStore.importSelection(items) { progress in
+            await MainActor.run {
+                importProgress = progress
             }
         }
     }

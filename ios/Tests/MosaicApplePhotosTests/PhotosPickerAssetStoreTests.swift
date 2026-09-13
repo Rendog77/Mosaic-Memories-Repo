@@ -6,6 +6,12 @@ import MosaicFeatures
 @testable import MosaicApplePhotos
 
 final class PhotosPickerAssetStoreTests: XCTestCase {
+    func testImportProgressReportsBoundedFraction() {
+        XCTAssertEqual(PhotoImportProgress(completedCount: 0, totalCount: 4).fractionCompleted, 0)
+        XCTAssertEqual(PhotoImportProgress(completedCount: 2, totalCount: 4).fractionCompleted, 0.5)
+        XCTAssertEqual(PhotoImportProgress(completedCount: 4, totalCount: 4).fractionCompleted, 1)
+    }
+
     func testRegisteredSelectionReturnsBoundedJPEGThumbnail() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
