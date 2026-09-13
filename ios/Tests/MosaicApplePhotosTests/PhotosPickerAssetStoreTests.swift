@@ -68,5 +68,28 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         XCTAssertTrue(references.allSatisfy { $0.origin == .photoPicker })
     }
 
+    func testAppEnvironmentSeparatesRecipesFromSelectedPhotoCopies() async throws {
+        let applicationSupport = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: applicationSupport) }
+        let environment = MosaicAppEnvironment(applicationSupportDirectory: applicationSupport)
+        let project = MosaicProject(title: "Persistent mosaic")
+        let png = try XCTUnwrap(Data(base64Encoded: Self.onePixelPNG))
+
+        try await environment.projectStore.save(project)
+        _ = try await environment.assetStore.registerImportedData(png)
+
+        let root = applicationSupport.appendingPathComponent("MosaicMemories")
+        let projectFiles = try FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("Projects"),
+            includingPropertiesForKeys: nil
+        )
+        let assetFiles = try FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("SelectedPhotos"),
+            includingPropertiesForKeys: nil
+        )
+        XCTAssertEqual(projectFiles.map(\.pathExtension), ["json"])
+        XCTAssertEqual(assetFiles.map(\.pathExtension), ["asset"])
+    }
+
     private static let onePixelPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 }

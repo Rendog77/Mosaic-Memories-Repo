@@ -41,6 +41,7 @@ This folder contains the platform-independent production foundation as a Swift P
 - Selected-photo imports produce opaque app identifiers rather than exposing library identifiers.
 - Multi-photo imports are atomic: failed transfers and cache writes leave no partially imported selection behind.
 - An iOS-only `PhotosPickerCreationView` presents native single-item hero and multi-item source pickers and connects imported assets to the creation session.
+- An iOS production composition root connects the saved-project library and picker-backed creation flow using separate Application Support directories for recipes and selected-photo copies.
 - The `PhotosPickerItem` bridge is compiled only for iOS/iPadOS; CI builds its package scheme for a generic iOS Simulator while its cache and ImageIO components remain covered by macOS tests.
 
 Photo-library integration remains behind the next platform boundary. The current hero and source buttons deliberately use fixture references so the complete navigation/persistence shell can be compiled and tested before PhotoKit is introduced. The package cannot be compiled locally because Apple Swift/Xcode tooling is unavailable on Windows; GitHub Actions provides the macOS build gate.
