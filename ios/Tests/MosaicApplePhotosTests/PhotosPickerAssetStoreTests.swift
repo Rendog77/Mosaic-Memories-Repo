@@ -1,8 +1,10 @@
 import Foundation
 import XCTest
+import CoreGraphics
 import ImageIO
 import MosaicCore
 import MosaicFeatures
+import UniformTypeIdentifiers
 @testable import MosaicApplePhotos
 
 final class PhotosPickerAssetStoreTests: XCTestCase {
@@ -62,6 +64,23 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         XCTAssertEqual(reference.origin, .photoPicker)
         XCTAssertLessThanOrEqual(properties[kCGImagePropertyPixelWidth] as? Int ?? .max, 64)
         XCTAssertLessThanOrEqual(properties[kCGImagePropertyPixelHeight] as? Int ?? .max, 64)
+    }
+
+    func testThumbnailNormalizesOrientationMetadata() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PhotosPickerAssetStore(directory: directory)
+        let orientedJPEG = try makeOrientedJPEG()
+
+        let reference = try await store.registerImportedData(orientedJPEG)
+        let thumbnail = try await store.thumbnail(for: reference, maximumPixelSize: 64)
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(thumbnail as CFData, nil))
+        let properties = try XCTUnwrap(
+            CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        )
+
+        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 1)
+        XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 2)
     }
 
     func testMissingCachedAssetReturnsTypedFailure() async {
@@ -172,4 +191,42 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
     }
 
     private static let onePixelPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+    private func makeOrientedJPEG() throws -> Data {
+        let colourSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+        let context = try XCTUnwrap(
+            CGContext(
+                data: nil,
+                width: 2,
+                height: 1,
+                bitsPerComponent: 8,
+                bytesPerRow: 8,
+                space: colourSpace,
+                bitmapInfo: bitmapInfo.rawValue
+            )
+        )
+        context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        context.setFillColor(CGColor(red: 0, green: 0, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 1, y: 0, width: 1, height: 1))
+
+        let image = try XCTUnwrap(context.makeImage())
+        let output = NSMutableData()
+        let destination = try XCTUnwrap(
+            CGImageDestinationCreateWithData(
+                output as CFMutableData,
+                UTType.jpeg.identifier as CFString,
+                1,
+                nil
+            )
+        )
+        CGImageDestinationAddImage(
+            destination,
+            image,
+            [kCGImagePropertyOrientation: 6] as CFDictionary
+        )
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        return output as Data
+    }
 }

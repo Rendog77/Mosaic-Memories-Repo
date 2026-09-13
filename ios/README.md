@@ -38,6 +38,7 @@ This folder contains the production modules as a Swift Package plus a declarativ
 - Lazy per-cell thumbnail loading, add/remove controls, retry, and readiness messaging.
 - An isolated `MosaicApplePhotos` adapter for explicitly selected `PhotosPickerItem` values.
 - App-controlled picker-asset caching with bounded ImageIO JPEG thumbnail generation.
+- ImageIO thumbnail transforms normalize camera orientation metadata, covered by a rotated-JPEG regression test.
 - Selected-photo imports produce opaque app identifiers rather than exposing library identifiers.
 - Multi-photo imports are atomic: failed transfers and cache writes leave no partially imported selection behind.
 - Native picker imports expose bounded completed/total progress and temporarily disable competing creation actions.
