@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+device_kind="${1:-iPhone}"
+
 device_id="$({
   xcrun simctl list devices available
-} | awk '/iPhone/ && /Shutdown/ { identifier = $(NF - 1); gsub(/[()]/, "", identifier); print identifier; exit }')"
+} | awk -v kind="$device_kind" '$0 ~ kind && /Shutdown/ { identifier = $(NF - 1); gsub(/[()]/, "", identifier); print identifier; exit }')"
 
 if [[ -z "$device_id" ]]; then
-  echo "No available shutdown iPhone simulator was found."
+  echo "No available shutdown $device_kind simulator was found."
   exit 1
 fi
 
 app_path=".build/app-derived/Build/Products/Debug-iphonesimulator/MosaicMemories.app"
 bundle_id="com.mosaicmemories.app"
 
+echo "Running launch smoke test on $device_kind simulator $device_id"
 xcrun simctl boot "$device_id"
 xcrun simctl bootstatus "$device_id" -b
 xcrun simctl install "$device_id" "$app_path"
