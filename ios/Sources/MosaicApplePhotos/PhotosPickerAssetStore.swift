@@ -6,9 +6,14 @@ import UniformTypeIdentifiers
 
 public actor PhotosPickerAssetStore: PhotoAssetLoading {
     private let directory: URL
+    private let validationPolicy: PhotoImportValidationPolicy
 
-    public init(directory: URL) {
+    public init(
+        directory: URL,
+        validationPolicy: PhotoImportValidationPolicy = .init()
+    ) {
         self.directory = directory
+        self.validationPolicy = validationPolicy
     }
 
     public func registerImportedData(
@@ -24,6 +29,14 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
         else {
             throw PhotoSelectionError.unsupportedFormat(sourceIdentifier)
         }
+        guard
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+            let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue
+        else {
+            throw PhotoSelectionError.invalidDimensions(sourceIdentifier)
+        }
+        try validationPolicy.validate(width: width, height: height, identifier: sourceIdentifier)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let identifier = UUID().uuidString
         try data.write(to: fileURL(for: identifier), options: .atomic)

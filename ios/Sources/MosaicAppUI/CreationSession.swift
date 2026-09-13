@@ -214,6 +214,10 @@ public final class CreationSession: ObservableObject {
             message = "A selected photo could not be imported. Choose it again and retry."
         case .unsupportedFormat:
             message = "A selected file is not a supported image. Choose another photo and try again."
+        case .invalidDimensions:
+            message = "A selected image has invalid dimensions. Choose another photo and try again."
+        case .imageTooLarge:
+            message = "A selected image is too large to process safely. Choose a smaller photo and try again."
         }
     }
 

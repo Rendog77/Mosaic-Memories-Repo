@@ -7,7 +7,7 @@ public struct PhotoImportRetryPolicy: Sendable {
         switch error {
         case .assetUnavailable, .iCloudDownloadFailed, .transferFailed:
             return true
-        case .permissionDenied, .selectionCancelled, .unsupportedFormat:
+        case .permissionDenied, .selectionCancelled, .unsupportedFormat, .invalidDimensions, .imageTooLarge:
             return false
         }
     }

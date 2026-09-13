@@ -44,6 +44,7 @@ This folder contains the production modules as a Swift Package plus a declarativ
 - Native picker imports expose bounded completed/total progress and temporarily disable competing creation actions.
 - Active imports can be cancelled without showing a failure; cancellation rolls back every cached file created by the interrupted batch.
 - ImageIO validates every selected file before it enters the private cache, with typed unsupported-format guidance.
+- Metadata validation rejects non-positive dimensions and images above an injectable 500-megapixel safety ceiling before decoding or caching; the ceiling remains provisional pending device measurements.
 - Transfer errors use stable Foundation signals to distinguish cancellation, unavailable items, network-backed iCloud failures, and unknown failures without parsing localized error text.
 - Retryable import failures retain the selected picker items for one-tap retry; cancellation, permission denial, and unsupported formats do not offer misleading retries.
 - Removing a reviewed source deletes its private cached copy only after the updated project recipe saves successfully; failed saves roll the workflow back.

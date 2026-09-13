@@ -244,6 +244,10 @@ public struct PhotosPickerCreationView: View {
         switch error {
         case .unsupportedFormat:
             return "The selected \(selectionName) is not in a supported image format. Choose another and try again."
+        case .invalidDimensions:
+            return "The selected \(selectionName) has invalid dimensions. Choose another and try again."
+        case .imageTooLarge:
+            return "The selected \(selectionName) is too large to process safely. Choose a smaller image and try again."
         case .assetUnavailable:
             return "The selected \(selectionName) is unavailable. Choose another and try again."
         case .iCloudDownloadFailed:

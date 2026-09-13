@@ -39,6 +39,8 @@ public enum PhotoSelectionError: Error, Equatable, Sendable {
     case iCloudDownloadFailed(String)
     case transferFailed(String)
     case unsupportedFormat(String)
+    case invalidDimensions(String)
+    case imageTooLarge(String)
 }
 
 public struct UnavailablePhotoSelector: HeroPhotoSelecting, SourcePhotosSelecting {

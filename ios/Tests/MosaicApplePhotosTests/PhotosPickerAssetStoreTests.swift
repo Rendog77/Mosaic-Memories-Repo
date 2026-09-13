@@ -17,6 +17,20 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         XCTAssertFalse(policy.shouldOfferRetry(for: .selectionCancelled))
         XCTAssertFalse(policy.shouldOfferRetry(for: .permissionDenied))
         XCTAssertFalse(policy.shouldOfferRetry(for: .unsupportedFormat("four")))
+        XCTAssertFalse(policy.shouldOfferRetry(for: .invalidDimensions("five")))
+        XCTAssertFalse(policy.shouldOfferRetry(for: .imageTooLarge("six")))
+    }
+
+    func testDimensionPolicyRejectsInvalidAndOversizedMetadata() {
+        let policy = PhotoImportValidationPolicy(maximumPixelCount: 100)
+
+        XCTAssertNoThrow(try policy.validate(width: 10, height: 10, identifier: "boundary"))
+        XCTAssertThrowsError(try policy.validate(width: 0, height: 10, identifier: "invalid")) { error in
+            XCTAssertEqual(error as? PhotoSelectionError, .invalidDimensions("invalid"))
+        }
+        XCTAssertThrowsError(try policy.validate(width: 11, height: 10, identifier: "large")) { error in
+            XCTAssertEqual(error as? PhotoSelectionError, .imageTooLarge("large"))
+        }
     }
 
     func testTransferClassifierDistinguishesStableFailureSignals() {
@@ -81,6 +95,27 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
 
         XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 1)
         XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 2)
+    }
+
+    func testOversizedImageIsRejectedBeforeCaching() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PhotosPickerAssetStore(
+            directory: directory,
+            validationPolicy: .init(maximumPixelCount: 1)
+        )
+
+        do {
+            _ = try await store.registerImportedData(
+                makeOrientedJPEG(),
+                sourceIdentifier: "large-item"
+            )
+            XCTFail("Expected oversized image failure")
+        } catch let error as PhotoSelectionError {
+            XCTAssertEqual(error, .imageTooLarge("large-item"))
+        }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
     }
 
     func testMissingCachedAssetReturnsTypedFailure() async {
