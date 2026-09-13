@@ -6,6 +6,17 @@ import MosaicFeatures
 @testable import MosaicApplePhotos
 
 final class PhotosPickerAssetStoreTests: XCTestCase {
+    func testRetryPolicyOffersRetryOnlyForTransientImportFailures() {
+        let policy = PhotoImportRetryPolicy()
+
+        XCTAssertTrue(policy.shouldOfferRetry(for: .assetUnavailable("one")))
+        XCTAssertTrue(policy.shouldOfferRetry(for: .iCloudDownloadFailed("two")))
+        XCTAssertTrue(policy.shouldOfferRetry(for: .transferFailed("three")))
+        XCTAssertFalse(policy.shouldOfferRetry(for: .selectionCancelled))
+        XCTAssertFalse(policy.shouldOfferRetry(for: .permissionDenied))
+        XCTAssertFalse(policy.shouldOfferRetry(for: .unsupportedFormat("four")))
+    }
+
     func testTransferClassifierDistinguishesStableFailureSignals() {
         let classifier = PhotoTransferErrorClassifier()
         let unavailable = NSError(

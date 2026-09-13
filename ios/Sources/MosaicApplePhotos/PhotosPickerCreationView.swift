@@ -6,6 +6,11 @@ import MosaicFeatures
 import PhotosUI
 import SwiftUI
 
+private enum PendingImportRetry {
+    case hero(PhotosPickerItem)
+    case sources([PhotosPickerItem])
+}
+
 extension PhotosPickerAssetStore {
     public func importSelection(
         _ items: [PhotosPickerItem],
@@ -64,6 +69,7 @@ public struct PhotosPickerCreationView: View {
     @State private var sourceItems: [PhotosPickerItem] = []
     @State private var importMessage: String?
     @State private var importProgress: PhotoImportProgress?
+    @State private var pendingRetry: PendingImportRetry?
 
     public init(
         session: CreationSession,
@@ -79,8 +85,8 @@ public struct PhotosPickerCreationView: View {
         MosaicCreationView(
             session: session,
             assetLoader: assetStore,
-            onChooseHero: { isChoosingHero = true },
-            onChooseSources: { isChoosingSources = true },
+            onChooseHero: beginHeroSelection,
+            onChooseSources: beginSourceSelection,
             onRemoveSource: { reference in
                 await assetStore.discardCachedAssets([reference])
             },
@@ -111,12 +117,16 @@ public struct PhotosPickerCreationView: View {
                 if let previousHero, previousHero.origin == .photoPicker {
                     await assetStore.discardCachedAssets([previousHero])
                 }
+                pendingRetry = nil
                 importMessage = nil
             } catch let error as PhotoSelectionError where error == .selectionCancelled {
+                pendingRetry = nil
                 importMessage = nil
             } catch let error as PhotoSelectionError {
+                pendingRetry = PhotoImportRetryPolicy().shouldOfferRetry(for: error) ? .hero(heroItem) : nil
                 importMessage = message(for: error, selectionName: "hero photo")
             } catch {
+                pendingRetry = .hero(heroItem)
                 importMessage = "The selected hero photo could not be imported. Please try again."
             }
             self.heroItem = nil
@@ -131,15 +141,19 @@ public struct PhotosPickerCreationView: View {
                 } else {
                     await session.reviewSources(importedReferences)
                 }
+                pendingRetry = nil
                 importMessage = nil
             } catch let error as PhotoSelectionError where error == .selectionCancelled {
                 await assetStore.discardCachedAssets(importedReferences)
+                pendingRetry = nil
                 importMessage = nil
             } catch let error as PhotoSelectionError {
                 await assetStore.discardCachedAssets(importedReferences)
+                pendingRetry = PhotoImportRetryPolicy().shouldOfferRetry(for: error) ? .sources(sourceItems) : nil
                 importMessage = message(for: error, selectionName: "photo")
             } catch {
                 await assetStore.discardCachedAssets(importedReferences)
+                pendingRetry = .sources(sourceItems)
                 importMessage = "One or more selected photos could not be imported. Please try again."
             }
             sourceItems = []
@@ -160,13 +174,19 @@ public struct PhotosPickerCreationView: View {
                 .accessibilityLabel("Importing photos")
                 .accessibilityValue("\(importProgress.completedCount) of \(importProgress.totalCount)")
             } else if let importMessage {
-                Text(importMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .padding()
-                    .background(.regularMaterial, in: Capsule())
-                    .padding()
-                    .accessibilityLabel("Notice: \(importMessage)")
+                VStack(spacing: 8) {
+                    Text(importMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                    if pendingRetry != nil {
+                        Button("Retry import", action: retryImport)
+                    }
+                }
+                .padding()
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .padding()
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Notice: \(importMessage)")
             }
         }
     }
@@ -190,7 +210,34 @@ public struct PhotosPickerCreationView: View {
     private func cancelImport() {
         heroItem = nil
         sourceItems = []
+        pendingRetry = nil
         importMessage = nil
+    }
+
+    private func beginHeroSelection() {
+        pendingRetry = nil
+        importMessage = nil
+        isChoosingHero = true
+    }
+
+    private func beginSourceSelection() {
+        pendingRetry = nil
+        importMessage = nil
+        isChoosingSources = true
+    }
+
+    private func retryImport() {
+        let retry = pendingRetry
+        pendingRetry = nil
+        importMessage = nil
+        switch retry {
+        case .hero(let item):
+            heroItem = item
+        case .sources(let items):
+            sourceItems = items
+        case nil:
+            break
+        }
     }
 
     private func message(for error: PhotoSelectionError, selectionName: String) -> String {

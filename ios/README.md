@@ -44,6 +44,7 @@ This folder contains the production modules as a Swift Package plus a declarativ
 - Active imports can be cancelled without showing a failure; cancellation rolls back every cached file created by the interrupted batch.
 - ImageIO validates every selected file before it enters the private cache, with typed unsupported-format guidance.
 - Transfer errors use stable Foundation signals to distinguish cancellation, unavailable items, network-backed iCloud failures, and unknown failures without parsing localized error text.
+- Retryable import failures retain the selected picker items for one-tap retry; cancellation, permission denial, and unsupported formats do not offer misleading retries.
 - Removing a reviewed source deletes its private cached copy only after the updated project recipe saves successfully; failed saves roll the workflow back.
 - An iOS-only `PhotosPickerCreationView` presents native single-item hero and multi-item source pickers and connects imported assets to the creation session.
 - An iOS production composition root connects the saved-project library and picker-backed creation flow using separate Application Support directories for recipes and selected-photo copies.
