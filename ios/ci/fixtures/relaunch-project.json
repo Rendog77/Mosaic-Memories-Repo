@@ -1,0 +1,16 @@
+{
+  "createdAt": 0,
+  "hero": null,
+  "id": "11111111-1111-1111-1111-111111111111",
+  "recipe": {
+    "columns": 50,
+    "engineVersion": 1,
+    "likeness": 0.5,
+    "repeatWindow": 8,
+    "replacements": []
+  },
+  "schemaVersion": 1,
+  "sources": [],
+  "title": "CI Relaunch Project",
+  "updatedAt": 0
+}
