@@ -3,9 +3,6 @@ import ImageIO
 import MosaicCore
 import MosaicFeatures
 import UniformTypeIdentifiers
-#if os(iOS) && canImport(PhotosUI)
-import PhotosUI
-#endif
 
 public actor PhotosPickerAssetStore: PhotoAssetLoading {
     private let directory: URL
@@ -100,24 +97,3 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
         return output as Data
     }
 }
-
-#if os(iOS) && canImport(PhotosUI)
-extension PhotosPickerAssetStore {
-    public func importSelection(_ items: [PhotosPickerItem]) async throws -> [AssetReference] {
-        var importedData: [Data] = []
-        for item in items {
-            do {
-                guard let data = try await item.loadTransferable(type: Data.self) else {
-                    throw PhotoSelectionError.assetUnavailable(item.itemIdentifier ?? "selected-photo")
-                }
-                importedData.append(data)
-            } catch let error as PhotoSelectionError {
-                throw error
-            } catch {
-                throw PhotoSelectionError.transferFailed(item.itemIdentifier ?? "selected-photo")
-            }
-        }
-        return try registerImportedData(importedData)
-    }
-}
-#endif

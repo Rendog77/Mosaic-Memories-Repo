@@ -1,8 +1,28 @@
 #if os(iOS)
+import Foundation
 import MosaicAppUI
 import MosaicFeatures
 import PhotosUI
 import SwiftUI
+
+extension PhotosPickerAssetStore {
+    public func importSelection(_ items: [PhotosPickerItem]) async throws -> [AssetReference] {
+        var importedData: [Data] = []
+        for item in items {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    throw PhotoSelectionError.assetUnavailable(item.itemIdentifier ?? "selected-photo")
+                }
+                importedData.append(data)
+            } catch let error as PhotoSelectionError {
+                throw error
+            } catch {
+                throw PhotoSelectionError.transferFailed(item.itemIdentifier ?? "selected-photo")
+            }
+        }
+        return try registerImportedData(importedData)
+    }
+}
 
 public struct PhotosPickerCreationView: View {
     @ObservedObject private var session: CreationSession
