@@ -17,14 +17,23 @@ extension PhotosPickerAssetStore {
         do {
             for (index, item) in items.enumerated() {
                 try Task.checkCancellation()
-                guard let data = try await item.loadTransferable(type: Data.self) else {
-                    throw PhotoSelectionError.assetUnavailable(item.itemIdentifier ?? "selected-photo")
+                let identifier = item.itemIdentifier ?? "selected-photo"
+                let data: Data
+                do {
+                    guard let transferred = try await item.loadTransferable(type: Data.self) else {
+                        throw PhotoSelectionError.assetUnavailable(identifier)
+                    }
+                    data = transferred
+                } catch let error as PhotoSelectionError {
+                    throw error
+                } catch {
+                    throw PhotoTransferErrorClassifier().classify(error, identifier: identifier)
                 }
                 try Task.checkCancellation()
                 references.append(
                     try registerImportedData(
                         data,
-                        sourceIdentifier: item.itemIdentifier ?? "selected-photo"
+                        sourceIdentifier: identifier
                     )
                 )
                 await onProgress(.init(completedCount: index + 1, totalCount: items.count))
@@ -39,7 +48,7 @@ extension PhotosPickerAssetStore {
             throw error
         } catch {
             discardCachedAssets(references)
-            throw PhotoSelectionError.transferFailed("selected-photo")
+            throw PhotoTransferErrorClassifier().classify(error, identifier: "selected-photo")
         }
     }
 }

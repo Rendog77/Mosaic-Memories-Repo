@@ -6,6 +6,31 @@ import MosaicFeatures
 @testable import MosaicApplePhotos
 
 final class PhotosPickerAssetStoreTests: XCTestCase {
+    func testTransferClassifierDistinguishesStableFailureSignals() {
+        let classifier = PhotoTransferErrorClassifier()
+        let unavailable = NSError(
+            domain: NSItemProvider.errorDomain,
+            code: NSItemProvider.ErrorCode.itemUnavailableError.rawValue
+        )
+        let offline = NSError(
+            domain: NSURLErrorDomain,
+            code: URLError.Code.notConnectedToInternet.rawValue
+        )
+        let unknown = NSError(domain: "MosaicTests", code: 42)
+
+        XCTAssertEqual(classifier.classify(unavailable, identifier: "one"), .assetUnavailable("one"))
+        XCTAssertEqual(classifier.classify(offline, identifier: "two"), .iCloudDownloadFailed("two"))
+        XCTAssertEqual(classifier.classify(unknown, identifier: "three"), .transferFailed("three"))
+    }
+
+    func testTransferClassifierTreatsCancellationAsNonFailureState() {
+        let error = PhotoTransferErrorClassifier().classify(
+            CancellationError(),
+            identifier: "cancelled"
+        )
+        XCTAssertEqual(error, .selectionCancelled)
+    }
+
     func testImportProgressReportsBoundedFraction() {
         XCTAssertEqual(PhotoImportProgress(completedCount: 0, totalCount: 4).fractionCompleted, 0)
         XCTAssertEqual(PhotoImportProgress(completedCount: 2, totalCount: 4).fractionCompleted, 0.5)
