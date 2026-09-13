@@ -36,6 +36,9 @@ This folder contains the platform-independent production foundation as a Swift P
 - Functional hero and source-review SwiftUI screens backed by injected services.
 - Cross-platform thumbnail rendering for iOS and macOS package validation.
 - Lazy per-cell thumbnail loading, add/remove controls, retry, and readiness messaging.
+- An isolated `MosaicApplePhotos` adapter for explicitly selected `PhotosPickerItem` values.
+- App-controlled picker-asset caching with bounded ImageIO JPEG thumbnail generation.
+- Selected-photo imports produce opaque app identifiers rather than exposing library identifiers.
 
 Photo-library integration remains behind the next platform boundary. The current hero and source buttons deliberately use fixture references so the complete navigation/persistence shell can be compiled and tested before PhotoKit is introduced. The package cannot be compiled locally because Apple Swift/Xcode tooling is unavailable on Windows; GitHub Actions provides the macOS build gate.
 

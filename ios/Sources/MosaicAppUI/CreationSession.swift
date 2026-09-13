@@ -204,6 +204,8 @@ public final class CreationSession: ObservableObject {
             message = "A selected photo is unavailable. Choose another photo and try again."
         case .iCloudDownloadFailed:
             message = "A photo could not be downloaded from iCloud. Check your connection and try again."
+        case .transferFailed:
+            message = "A selected photo could not be imported. Choose it again and retry."
         }
     }
 

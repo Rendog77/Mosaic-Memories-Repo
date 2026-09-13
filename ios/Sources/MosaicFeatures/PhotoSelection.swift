@@ -37,6 +37,7 @@ public enum PhotoSelectionError: Error, Equatable, Sendable {
     case selectionCancelled
     case assetUnavailable(String)
     case iCloudDownloadFailed(String)
+    case transferFailed(String)
 }
 
 public struct UnavailablePhotoSelector: HeroPhotoSelecting, SourcePhotosSelecting {
