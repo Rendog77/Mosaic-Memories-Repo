@@ -1,6 +1,6 @@
 # Native iOS/iPadOS app
 
-This folder contains the platform-independent production foundation as a Swift Package. Do not hand-author an `.xcodeproj` on Windows: create and validate the application target with the installed Xcode version on macOS.
+This folder contains the production modules as a Swift Package plus a declarative XcodeGen application specification. Do not hand-author an `.xcodeproj` on Windows: `xcodegen generate` creates it using Xcode-compatible metadata on macOS.
 
 ## What is available now
 
@@ -43,12 +43,13 @@ This folder contains the platform-independent production foundation as a Swift P
 - An iOS-only `PhotosPickerCreationView` presents native single-item hero and multi-item source pickers and connects imported assets to the creation session.
 - An iOS production composition root connects the saved-project library and picker-backed creation flow using separate Application Support directories for recipes and selected-photo copies.
 - The `PhotosPickerItem` bridge is compiled only for iOS/iPadOS; CI builds its package scheme for a generic iOS Simulator while its cache and ImageIO components remain covered by macOS tests.
+- A universal SwiftUI `@main` application target is generated from `project.yml` and compiled for a generic iOS Simulator in CI.
 
 Photo-library integration remains behind the next platform boundary. The current hero and source buttons deliberately use fixture references so the complete navigation/persistence shell can be compiled and tested before PhotoKit is introduced. The package cannot be compiled locally because Apple Swift/Xcode tooling is unavailable on Windows; GitHub Actions provides the macOS build gate.
 
 ## Initial macOS setup
 
-1. Create a SwiftUI Multiplatform/iOS app named `MosaicMemories`, targeting iPhone and iPad.
+1. Install XcodeGen and run `xcodegen generate` from this directory to create the universal iPhone/iPad project.
 2. Choose the deployment target only after the Phase 1 benchmark spike.
 3. Use local Swift packages or framework targets for:
    - `MosaicEngine`

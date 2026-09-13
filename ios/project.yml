@@ -1,0 +1,31 @@
+name: MosaicMemories
+
+options:
+  deploymentTarget:
+    iOS: "17.0"
+
+packages:
+  MosaicMemoriesPackage:
+    path: .
+
+targets:
+  MosaicMemories:
+    type: application
+    platform: iOS
+    sources:
+      - App
+    dependencies:
+      - package: MosaicMemoriesPackage
+        product: MosaicApplePhotos
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mosaicmemories.app
+        PRODUCT_NAME: MosaicMemories
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_FILE: App/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_VERSION: 5.9
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
+        CODE_SIGN_STYLE: Automatic

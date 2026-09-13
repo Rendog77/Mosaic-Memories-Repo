@@ -21,3 +21,9 @@ jobs:
         run: xcodebuild -scheme MosaicApplePhotos -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
       - name: Run package tests
         run: swift test
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode application project
+        run: xcodegen generate
+      - name: Build universal iOS application
+        run: xcodebuild -project MosaicMemories.xcodeproj -scheme MosaicMemories -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
