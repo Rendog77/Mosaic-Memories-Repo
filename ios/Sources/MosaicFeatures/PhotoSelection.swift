@@ -50,3 +50,11 @@ public struct UnavailablePhotoSelector: HeroPhotoSelecting, SourcePhotosSelectin
         throw PhotoSelectionError.assetUnavailable("Photo picker is not connected")
     }
 }
+
+public struct UnavailablePhotoAssetLoader: PhotoAssetLoading {
+    public init() {}
+
+    public func thumbnail(for reference: AssetReference, maximumPixelSize: Int) async throws -> Data {
+        throw PhotoSelectionError.assetUnavailable(reference.id)
+    }
+}
