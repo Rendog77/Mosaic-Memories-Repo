@@ -3,7 +3,7 @@ import ImageIO
 import MosaicCore
 import MosaicFeatures
 import UniformTypeIdentifiers
-#if canImport(PhotosUI)
+#if os(iOS) && canImport(PhotosUI)
 import PhotosUI
 #endif
 
@@ -86,7 +86,7 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
     }
 }
 
-#if canImport(PhotosUI)
+#if os(iOS) && canImport(PhotosUI)
 extension PhotosPickerAssetStore {
     public func importSelection(_ items: [PhotosPickerItem]) async throws -> [AssetReference] {
         var references: [AssetReference] = []
