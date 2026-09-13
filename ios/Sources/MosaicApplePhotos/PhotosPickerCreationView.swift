@@ -16,13 +16,19 @@ extension PhotosPickerAssetStore {
         await onProgress(.init(completedCount: 0, totalCount: items.count))
         do {
             for (index, item) in items.enumerated() {
+                try Task.checkCancellation()
                 guard let data = try await item.loadTransferable(type: Data.self) else {
                     throw PhotoSelectionError.assetUnavailable(item.itemIdentifier ?? "selected-photo")
                 }
+                try Task.checkCancellation()
                 references.append(try registerImportedData(data))
                 await onProgress(.init(completedCount: index + 1, totalCount: items.count))
+                try Task.checkCancellation()
             }
             return references
+        } catch is CancellationError {
+            discardCachedAssets(references)
+            throw PhotoSelectionError.selectionCancelled
         } catch let error as PhotoSelectionError {
             discardCachedAssets(references)
             throw error
@@ -92,6 +98,8 @@ public struct PhotosPickerCreationView: View {
                     await assetStore.discardCachedAssets([previousHero])
                 }
                 importMessage = nil
+            } catch let error as PhotoSelectionError where error == .selectionCancelled {
+                importMessage = nil
             } catch {
                 importMessage = "The selected hero photo could not be imported. Please try again."
             }
@@ -108,6 +116,9 @@ public struct PhotosPickerCreationView: View {
                     await session.reviewSources(importedReferences)
                 }
                 importMessage = nil
+            } catch let error as PhotoSelectionError where error == .selectionCancelled {
+                await assetStore.discardCachedAssets(importedReferences)
+                importMessage = nil
             } catch {
                 await assetStore.discardCachedAssets(importedReferences)
                 importMessage = "One or more selected photos could not be imported. Please try again."
@@ -121,6 +132,7 @@ public struct PhotosPickerCreationView: View {
                         .frame(maxWidth: 280)
                     Text("Importing \(importProgress.completedCount) of \(importProgress.totalCount) photos")
                         .font(.footnote)
+                    Button("Cancel import", role: .cancel, action: cancelImport)
                 }
                 .padding()
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -142,11 +154,24 @@ public struct PhotosPickerCreationView: View {
 
     private func importItems(_ items: [PhotosPickerItem]) async throws -> [AssetReference] {
         defer { importProgress = nil }
-        return try await assetStore.importSelection(items) { progress in
+        let references = try await assetStore.importSelection(items) { progress in
             await MainActor.run {
                 importProgress = progress
             }
         }
+        do {
+            try Task.checkCancellation()
+            return references
+        } catch {
+            await assetStore.discardCachedAssets(references)
+            throw PhotoSelectionError.selectionCancelled
+        }
+    }
+
+    private func cancelImport() {
+        heroItem = nil
+        sourceItems = []
+        importMessage = nil
     }
 }
 #endif
