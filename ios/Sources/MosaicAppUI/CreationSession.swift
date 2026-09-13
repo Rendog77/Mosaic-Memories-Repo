@@ -37,7 +37,7 @@ public final class CreationSession: ObservableObject {
         step: CreationStep? = nil
     ) {
         self.store = store
-        self.analytics = analytics
+        self.analytics = ValidatingAnalyticsRecorder(destination: analytics)
         self.heroSelector = heroSelector
         self.sourceSelector = sourceSelector
         self.sourceValidator = sourceValidator
@@ -46,7 +46,10 @@ public final class CreationSession: ObservableObject {
 
     public func startNewProject() async {
         workflow = CreationWorkflow()
-        await persist(event: .projectStarted)
+        await persist(
+            event: .projectStarted,
+            fields: [.workflowStep: "hero", .engineVersion: String(workflow.project.recipe.engineVersion)]
+        )
     }
 
     public func restoreMostRecentProject() async {
@@ -63,7 +66,7 @@ public final class CreationSession: ObservableObject {
 
     public func selectHero(_ reference: AssetReference) async {
         workflow.selectHero(reference)
-        await persist(event: .heroSelected)
+        await persist(event: .heroSelected, fields: [.workflowStep: "memories"])
     }
 
     public func requestHeroSelection() async {
@@ -109,7 +112,13 @@ public final class CreationSession: ObservableObject {
         do {
             try workflow.confirmReviewedSources(minimum: minimum)
             message = nil
-            await persist(event: .sourceSetConfirmed)
+            await persist(
+                event: .sourceSetConfirmed,
+                fields: [
+                    .workflowStep: "preview",
+                    .sourceCountBucket: SourceCountBucket(count: workflow.project.sources.count).rawValue,
+                ]
+            )
         } catch CreationWorkflowError.insufficientSources(let required, let actual) {
             message = "Choose at least \(required) photos. You currently have \(actual)."
         } catch {
@@ -119,7 +128,8 @@ public final class CreationSession: ObservableObject {
 
     public func move(to step: CreationStep) async {
         workflow.move(to: step)
-        await persist()
+        let event: AnalyticsEventName? = step == .edit ? .previewCompleted : nil
+        await persist(event: event, fields: [.workflowStep: Self.analyticsName(for: step)])
     }
 
     public func renameProject(to title: String) async {
@@ -131,6 +141,17 @@ public final class CreationSession: ObservableObject {
         if project.hero == nil { return .hero }
         if project.sources.isEmpty { return .memories }
         return .preview
+    }
+
+    private static func analyticsName(for step: CreationStep) -> String {
+        switch step {
+        case .hero: return "hero"
+        case .memories: return "memories"
+        case .sourceReview: return "source_review"
+        case .preview: return "preview"
+        case .edit: return "edit"
+        case .export: return "export"
+        }
     }
 
     private func handleSelectionError(_ error: PhotoSelectionError) {
@@ -165,13 +186,16 @@ public final class CreationSession: ObservableObject {
         }
     }
 
-    private func persist(event: AnalyticsEventName? = nil) async {
+    private func persist(
+        event: AnalyticsEventName? = nil,
+        fields: [AnalyticsField: String] = [:]
+    ) async {
         isSaving = true
         defer { isSaving = false }
         do {
             try await store.save(workflow.project)
             if let event {
-                await analytics.record(.init(name: event))
+                await analytics.record(.init(name: event, fields: fields))
             }
             message = nil
         } catch {

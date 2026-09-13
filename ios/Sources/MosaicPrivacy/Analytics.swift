@@ -33,6 +33,65 @@ public struct AnalyticsEvent: Equatable, Sendable {
     }
 }
 
+public enum AnalyticsValidationError: Error, Equatable, Sendable {
+    case disallowedValue(field: AnalyticsField)
+}
+
+public struct AnalyticsEventValidator: Sendable {
+    public init() {}
+
+    public func validate(_ event: AnalyticsEvent) throws {
+        for (field, value) in event.fields {
+            guard Self.isAllowed(value, for: field) else {
+                throw AnalyticsValidationError.disallowedValue(field: field)
+            }
+        }
+    }
+
+    private static func isAllowed(_ value: String, for field: AnalyticsField) -> Bool {
+        switch field {
+        case .appVersion:
+            return !value.isEmpty && value.count <= 32 && value.unicodeScalars.allSatisfy {
+                CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ".-_" )).contains($0)
+            }
+        case .engineVersion:
+            return Int(value).map { $0 > 0 } ?? false
+        case .workflowStep:
+            return ["hero", "memories", "source_review", "preview", "edit", "export"].contains(value)
+        case .sourceCountBucket:
+            return SourceCountBucket(rawValue: value) != nil
+        case .selectionMode:
+            return ["manual", "smart"].contains(value)
+        case .durationBucket:
+            return ["under_10s", "10_59s", "1_3m", "3_10m", "over_10m"].contains(value)
+        case .result:
+            return ["success", "failure", "cancelled"].contains(value)
+        case .failureReason:
+            return ["permission_denied", "asset_unavailable", "icloud_failed", "cancelled", "invalid_sources", "render_failed", "save_failed"].contains(value)
+        case .exportTier:
+            return ["screen", "high_resolution"].contains(value)
+        }
+    }
+}
+
+public actor ValidatingAnalyticsRecorder: AnalyticsRecording {
+    private let destination: any AnalyticsRecording
+    private let validator: AnalyticsEventValidator
+
+    public init(
+        destination: any AnalyticsRecording,
+        validator: AnalyticsEventValidator = .init()
+    ) {
+        self.destination = destination
+        self.validator = validator
+    }
+
+    public func record(_ event: AnalyticsEvent) async {
+        guard (try? validator.validate(event)) != nil else { return }
+        await destination.record(event)
+    }
+}
+
 public protocol AnalyticsRecording: Sendable {
     func record(_ event: AnalyticsEvent) async
 }
@@ -59,4 +118,3 @@ public enum SourceCountBucket: String, Sendable {
         }
     }
 }
-

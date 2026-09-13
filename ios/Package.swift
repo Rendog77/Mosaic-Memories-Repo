@@ -30,7 +30,7 @@ let package = Package(
         .testTarget(name: "MosaicFeaturesTests", dependencies: ["MosaicCore", "MosaicFeatures"]),
         .testTarget(
             name: "MosaicAppUITests",
-            dependencies: ["MosaicCore", "MosaicAppUI", "MosaicPersistence"]
+            dependencies: ["MosaicCore", "MosaicAppUI", "MosaicPersistence", "MosaicPrivacy"]
         ),
     ]
 )

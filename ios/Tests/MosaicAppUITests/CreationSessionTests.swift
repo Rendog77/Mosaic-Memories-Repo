@@ -3,6 +3,7 @@ import XCTest
 import MosaicCore
 import MosaicFeatures
 import MosaicPersistence
+import MosaicPrivacy
 @testable import MosaicAppUI
 
 private struct HeroSelectorStub: HeroPhotoSelecting {
@@ -18,6 +19,18 @@ private struct SourceSelectorStub: SourcePhotosSelecting {
 
     func selectSources(request: SourceSelectionRequest) async throws -> [AssetReference] {
         try result.get()
+    }
+}
+
+private actor RecordingAnalytics: AnalyticsRecording {
+    private var events: [AnalyticsEvent] = []
+
+    func record(_ event: AnalyticsEvent) {
+        events.append(event)
+    }
+
+    func capturedEvents() -> [AnalyticsEvent] {
+        events
     }
 }
 
@@ -119,5 +132,26 @@ final class CreationSessionTests: XCTestCase {
         XCTAssertEqual(session.photoSelectionState, .invalidSources(.tooManySources(maximum: 3, actual: 4)))
         XCTAssertEqual(session.workflow.project.sources, [])
         XCTAssertEqual(session.message, "Choose no more than 3 photos. You selected 4.")
+    }
+
+    func testCreationFlowRecordsOnlyCoarseAnalytics() async {
+        let recorder = RecordingAnalytics()
+        let session = CreationSession(store: InMemoryProjectStore(), analytics: recorder)
+        let sources = (0..<100).map { AssetReference(id: "private-source-\($0)", origin: .testFixture) }
+
+        await session.startNewProject()
+        await session.selectHero(.init(id: "private-hero-name.jpg", origin: .testFixture))
+        await session.reviewSources(sources)
+        await session.confirmSources()
+        await session.move(to: .edit)
+        let events = await recorder.capturedEvents()
+
+        XCTAssertEqual(events.map(\.name), [.projectStarted, .heroSelected, .sourceSetConfirmed, .previewCompleted])
+        XCTAssertEqual(events[2].fields[.sourceCountBucket], "100_249")
+        XCTAssertFalse(events.description.contains("private-hero-name.jpg"))
+        XCTAssertFalse(events.description.contains("private-source-"))
+        for event in events {
+            XCTAssertNoThrow(try AnalyticsEventValidator().validate(event))
+        }
     }
 }
