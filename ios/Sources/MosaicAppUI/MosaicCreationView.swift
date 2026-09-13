@@ -15,12 +15,14 @@ public struct MosaicCreationView: View {
     private let onClose: () -> Void
     private let onChooseHero: (() -> Void)?
     private let onChooseSources: (() -> Void)?
+    private let onRemoveSource: (@MainActor (AssetReference) async -> Void)?
 
     public init(
         session: CreationSession,
         assetLoader: any PhotoAssetLoading = UnavailablePhotoAssetLoader(),
         onChooseHero: (() -> Void)? = nil,
         onChooseSources: (() -> Void)? = nil,
+        onRemoveSource: (@MainActor (AssetReference) async -> Void)? = nil,
         onClose: @escaping () -> Void = {}
     ) {
         self.session = session
@@ -33,6 +35,7 @@ public struct MosaicCreationView: View {
         )
         self.onChooseHero = onChooseHero
         self.onChooseSources = onChooseSources
+        self.onRemoveSource = onRemoveSource
         self.onClose = onClose
     }
 
@@ -78,7 +81,12 @@ public struct MosaicCreationView: View {
         case .memories:
             MemorySelectionScreen(session: session, heroModel: heroModel, onChooseSources: onChooseSources)
         case .sourceReview:
-            SourceReviewScreen(session: session, model: sourceModel, onChooseSources: onChooseSources)
+            SourceReviewScreen(
+                session: session,
+                model: sourceModel,
+                onChooseSources: onChooseSources,
+                onRemoveSource: onRemoveSource
+            )
         case .preview:
             StepCard(
                 title: "Create your mosaic",
@@ -184,6 +192,7 @@ private struct SourceReviewScreen: View {
     @ObservedObject var session: CreationSession
     @ObservedObject var model: SourceReviewViewModel
     let onChooseSources: (() -> Void)?
+    let onRemoveSource: (@MainActor (AssetReference) async -> Void)?
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: MosaicDesign.compactSpacing)]
 
     var body: some View {
@@ -214,8 +223,10 @@ private struct SourceReviewScreen: View {
                     ForEach(model.items) { item in
                         SourceThumbnailCell(item: item) {
                             Task {
-                                await session.removeSource(id: item.id)
-                                model.remove(id: item.id)
+                                if await session.removeSource(id: item.id) {
+                                    model.remove(id: item.id)
+                                    await onRemoveSource?(item.reference)
+                                }
                             }
                         }
                         .task(id: item.id) {

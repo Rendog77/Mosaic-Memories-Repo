@@ -40,6 +40,7 @@ This folder contains the production modules as a Swift Package plus a declarativ
 - App-controlled picker-asset caching with bounded ImageIO JPEG thumbnail generation.
 - Selected-photo imports produce opaque app identifiers rather than exposing library identifiers.
 - Multi-photo imports are atomic: failed transfers and cache writes leave no partially imported selection behind.
+- Removing a reviewed source deletes its private cached copy only after the updated project recipe saves successfully; failed saves roll the workflow back.
 - An iOS-only `PhotosPickerCreationView` presents native single-item hero and multi-item source pickers and connects imported assets to the creation session.
 - An iOS production composition root connects the saved-project library and picker-backed creation flow using separate Application Support directories for recipes and selected-photo copies.
 - The `PhotosPickerItem` bridge is compiled only for iOS/iPadOS; CI builds its package scheme for a generic iOS Simulator while its cache and ImageIO components remain covered by macOS tests.

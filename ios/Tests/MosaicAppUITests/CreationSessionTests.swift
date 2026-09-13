@@ -34,6 +34,16 @@ private actor RecordingAnalytics: AnalyticsRecording {
     }
 }
 
+private actor SaveFailingProjectStore: ProjectStoring {
+    struct Failure: Error {}
+
+    func load(id: UUID) throws -> MosaicProject? { nil }
+    func save(_ project: MosaicProject) throws { throw Failure() }
+    func delete(id: UUID) throws {}
+    func list() throws -> [MosaicProject] { [] }
+    func catalog() throws -> ProjectCatalog { ProjectCatalog(projects: []) }
+}
+
 @MainActor
 final class CreationSessionTests: XCTestCase {
     func testSessionAutosavesAndRestoresWorkflow() async throws {
@@ -185,5 +195,21 @@ final class CreationSessionTests: XCTestCase {
             XCTFail("Unexpected error: \(error)")
         }
         XCTAssertEqual(session.workflow.project.sources, [source])
+    }
+
+    func testSourceRemovalRollsBackWhenPersistenceFails() async {
+        let source = AssetReference(id: "keep-me", origin: .photoPicker)
+        let project = MosaicProject(sources: [source])
+        let session = CreationSession(
+            store: SaveFailingProjectStore(),
+            project: project,
+            step: .sourceReview
+        )
+
+        let removed = await session.removeSource(id: source.id)
+
+        XCTAssertFalse(removed)
+        XCTAssertEqual(session.workflow.project.sources, [source])
+        XCTAssertEqual(session.message, "Changes could not be saved. Please try again.")
     }
 }

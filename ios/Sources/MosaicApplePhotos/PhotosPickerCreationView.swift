@@ -52,6 +52,9 @@ public struct PhotosPickerCreationView: View {
             assetLoader: assetStore,
             onChooseHero: { isChoosingHero = true },
             onChooseSources: { isChoosingSources = true },
+            onRemoveSource: { reference in
+                await assetStore.discardCachedAssets([reference])
+            },
             onClose: onClose
         )
         .photosPicker(

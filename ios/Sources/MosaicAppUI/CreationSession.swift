@@ -133,9 +133,15 @@ public final class CreationSession: ObservableObject {
         await reviewSources(validated)
     }
 
-    public func removeSource(id: String) async {
-        guard workflow.removeSource(id: id) else { return }
-        await persist()
+    @discardableResult
+    public func removeSource(id: String) async -> Bool {
+        let originalWorkflow = workflow
+        guard workflow.removeSource(id: id) else { return false }
+        guard await persist() else {
+            workflow = originalWorkflow
+            return false
+        }
+        return true
     }
 
     public func sourceReadiness(minimum: Int = 100) -> SourceSetReadiness {
@@ -222,10 +228,11 @@ public final class CreationSession: ObservableObject {
         }
     }
 
+    @discardableResult
     private func persist(
         event: AnalyticsEventName? = nil,
         fields: [AnalyticsField: String] = [:]
-    ) async {
+    ) async -> Bool {
         isSaving = true
         defer { isSaving = false }
         do {
@@ -234,8 +241,10 @@ public final class CreationSession: ObservableObject {
                 await analytics.record(.init(name: event, fields: fields))
             }
             message = nil
+            return true
         } catch {
             message = "Changes could not be saved. Please try again."
+            return false
         }
     }
 }
