@@ -125,13 +125,14 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         let store = PhotosPickerAssetStore(directory: directory)
         let reference = try await store.registerImportedData(makeOrientedJPEG(orientation: 1, width: 20, height: 10))
         let leftHalf = try HeroCrop(x: 0, y: 0, width: 0.5, height: 1)
+        let loader: any PhotoAssetLoading = store
 
         let fullThumbnail = try await store.thumbnail(for: reference, maximumPixelSize: 64)
         let fullSource = try XCTUnwrap(CGImageSourceCreateWithData(fullThumbnail as CFData, nil))
         let fullProperties = try XCTUnwrap(
             CGImageSourceCopyPropertiesAtIndex(fullSource, 0, nil) as? [CFString: Any]
         )
-        let thumbnail = try await store.thumbnail(for: reference, maximumPixelSize: 64, crop: leftHalf)
+        let thumbnail = try await loader.thumbnail(for: reference, maximumPixelSize: 64, crop: leftHalf)
         let source = try XCTUnwrap(CGImageSourceCreateWithData(thumbnail as CFData, nil))
         let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
 

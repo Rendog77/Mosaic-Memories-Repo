@@ -60,10 +60,18 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
     }
 
     public func thumbnail(for reference: AssetReference, maximumPixelSize: Int) throws -> Data {
-        try thumbnail(for: reference, maximumPixelSize: maximumPixelSize, crop: nil)
+        try makeThumbnail(for: reference, maximumPixelSize: maximumPixelSize, crop: nil)
     }
 
     public func thumbnail(
+        for reference: AssetReference,
+        maximumPixelSize: Int,
+        crop: HeroCrop?
+    ) async throws -> Data {
+        try makeThumbnail(for: reference, maximumPixelSize: maximumPixelSize, crop: crop)
+    }
+
+    private func makeThumbnail(
         for reference: AssetReference,
         maximumPixelSize: Int,
         crop: HeroCrop?
