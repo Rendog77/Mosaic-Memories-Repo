@@ -30,6 +30,13 @@ public protocol SourcePhotosSelecting: Sendable {
 
 public protocol PhotoAssetLoading: Sendable {
     func thumbnail(for reference: AssetReference, maximumPixelSize: Int) async throws -> Data
+    func thumbnail(for reference: AssetReference, maximumPixelSize: Int, crop: HeroCrop?) async throws -> Data
+}
+
+public extension PhotoAssetLoading {
+    func thumbnail(for reference: AssetReference, maximumPixelSize: Int, crop: HeroCrop?) async throws -> Data {
+        try await thumbnail(for: reference, maximumPixelSize: maximumPixelSize)
+    }
 }
 
 public enum PhotoSelectionError: Error, Equatable, Sendable {

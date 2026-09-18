@@ -164,28 +164,10 @@ private struct MemorySelectionScreen: View {
             if session.workflow.project.hero != nil {
                 ThumbnailView(state: heroModel.thumbnailState, emptySystemImage: "photo.fill")
                     .frame(width: 160, height: 120)
-                    .overlay {
-                        if let crop = session.workflow.project.heroCrop {
-                            GeometryReader { geometry in
-                                Rectangle()
-                                    .strokeBorder(.white, lineWidth: 3)
-                                    .shadow(color: .black, radius: 2)
-                                    .frame(
-                                        width: geometry.size.width * crop.width,
-                                        height: geometry.size.height * crop.height
-                                    )
-                                    .position(
-                                        x: geometry.size.width * (crop.x + crop.width / 2),
-                                        y: geometry.size.height * (crop.y + crop.height / 2)
-                                    )
-                            }
-                            .accessibilityHidden(true)
-                        }
-                    }
-                    .accessibilityLabel("Selected hero photo")
+                    .accessibilityLabel("Hero photo with selected framing")
                 Text("Frame your hero")
                     .font(.headline)
-                Text("Choose the area to feature. The outline is a guide; image cropping is connected in the next step.")
+                Text("Choose the area to feature. The preview updates when you change the framing.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -216,9 +198,10 @@ private struct MemorySelectionScreen: View {
             .tint(MosaicDesign.accent)
             .controlSize(.large)
         }
-        .task {
-            if let reference = session.workflow.project.hero, heroModel.reference != reference {
-                await heroModel.load(reference)
+        .task(id: session.workflow.project.heroCrop) {
+            if let reference = session.workflow.project.hero,
+               heroModel.reference != reference || heroModel.crop != session.workflow.project.heroCrop {
+                await heroModel.load(reference, crop: session.workflow.project.heroCrop)
             }
         }
     }

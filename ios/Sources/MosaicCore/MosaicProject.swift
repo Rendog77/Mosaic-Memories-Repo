@@ -36,7 +36,7 @@ public struct MosaicProject: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct HeroCrop: Codable, Equatable, Sendable {
+public struct HeroCrop: Codable, Equatable, Hashable, Sendable {
     public let x: Double
     public let y: Double
     public let width: Double

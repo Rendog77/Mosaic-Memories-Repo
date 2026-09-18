@@ -97,6 +97,36 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 2)
     }
 
+    func testHeroCropAppliesAfterOrientationNormalization() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PhotosPickerAssetStore(directory: directory)
+        let reference = try await store.registerImportedData(makeOrientedJPEG())
+        let upperHalf = try HeroCrop(x: 0, y: 0, width: 1, height: 0.5)
+
+        let thumbnail = try await store.thumbnail(for: reference, maximumPixelSize: 64, crop: upperHalf)
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(thumbnail as CFData, nil))
+        let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
+
+        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 1)
+        XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 1)
+    }
+
+    func testHeroCropChangesUnrotatedThumbnailDimensions() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PhotosPickerAssetStore(directory: directory)
+        let reference = try await store.registerImportedData(makeOrientedJPEG(orientation: 1))
+        let leftHalf = try HeroCrop(x: 0, y: 0, width: 0.5, height: 1)
+
+        let thumbnail = try await store.thumbnail(for: reference, maximumPixelSize: 64, crop: leftHalf)
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(thumbnail as CFData, nil))
+        let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
+
+        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 1)
+        XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 1)
+    }
+
     func testOversizedImageIsRejectedBeforeCaching() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -227,7 +257,7 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
 
     private static let onePixelPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
-    private func makeOrientedJPEG() throws -> Data {
+    private func makeOrientedJPEG(orientation: Int = 6) throws -> Data {
         let colourSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
         let context = try XCTUnwrap(
@@ -259,7 +289,7 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         CGImageDestinationAddImage(
             destination,
             image,
-            [kCGImagePropertyOrientation: 6] as CFDictionary
+            [kCGImagePropertyOrientation: orientation] as CFDictionary
         )
         XCTAssertTrue(CGImageDestinationFinalize(destination))
         return output as Data

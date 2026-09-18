@@ -34,7 +34,7 @@ The sequencing rule is: **prove that people value the artwork, then prove that s
 
 ## Phase 3 — Hero and manual sources (weeks 4–6)
 
-**Status:** In progress. Native selected-photo presentation, ImageIO format/orientation/dimension validation, atomic private caching, bounded import progress with cooperative cancellation, stable transfer-error classification, transient-failure retry, thumbnail review, source sufficiency, lifecycle cleanup, and persisted hero-crop presets with accessible controls are implemented. The injectable dimension ceiling is a safety bound, not a final device commitment. Applying the crop to images, picker interaction, byte-level iCloud progress, and broader missing-asset validation remain pending.
+**Status:** In progress. Native selected-photo presentation, ImageIO format/orientation/dimension validation, atomic private caching, bounded import progress with cooperative cancellation, stable transfer-error classification, transient-failure retry, thumbnail review, source sufficiency, lifecycle cleanup, and persisted hero-crop presets applied to hero thumbnails are implemented. The injectable dimension ceiling is a safety bound, not a final device commitment. Applying the crop to future engine previews, picker interaction, byte-level iCloud progress, and broader missing-asset validation remain pending.
 
 - Implement hero selection/crop and manual multi-selection without broad library permission.
 - Review, add/remove, and validate source sufficiency; handle orientation, formats, iCloud progress, cancellation, and missing assets.

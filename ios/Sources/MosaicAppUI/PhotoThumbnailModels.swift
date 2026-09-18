@@ -13,6 +13,7 @@ public enum ThumbnailLoadingState: Equatable, Sendable {
 @MainActor
 public final class HeroPhotoViewModel: ObservableObject {
     @Published public private(set) var reference: AssetReference?
+    @Published public private(set) var crop: HeroCrop?
     @Published public private(set) var thumbnailState: ThumbnailLoadingState = .idle
 
     private let loader: any PhotoAssetLoading
@@ -21,24 +22,29 @@ public final class HeroPhotoViewModel: ObservableObject {
         self.loader = loader
     }
 
-    public func load(_ reference: AssetReference, maximumPixelSize: Int = 1_024) async {
+    public func load(_ reference: AssetReference, crop: HeroCrop? = nil, maximumPixelSize: Int = 1_024) async {
         precondition(maximumPixelSize > 0)
         self.reference = reference
+        self.crop = crop
         thumbnailState = .loading
-        thumbnailState = await loadThumbnail(reference, maximumPixelSize: maximumPixelSize)
+        let result = await loadThumbnail(reference, crop: crop, maximumPixelSize: maximumPixelSize)
+        guard self.reference == reference, self.crop == crop else { return }
+        thumbnailState = result
     }
 
     public func clear() {
         reference = nil
+        crop = nil
         thumbnailState = .idle
     }
 
     private func loadThumbnail(
         _ reference: AssetReference,
+        crop: HeroCrop?,
         maximumPixelSize: Int
     ) async -> ThumbnailLoadingState {
         do {
-            let data = try await loader.thumbnail(for: reference, maximumPixelSize: maximumPixelSize)
+            let data = try await loader.thumbnail(for: reference, maximumPixelSize: maximumPixelSize, crop: crop)
             guard !data.isEmpty else {
                 return .failed(.assetUnavailable(reference.id))
             }

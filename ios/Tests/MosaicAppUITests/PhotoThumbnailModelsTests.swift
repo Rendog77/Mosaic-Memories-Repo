@@ -23,8 +23,33 @@ private actor ThumbnailLoaderStub: PhotoAssetLoading {
     }
 }
 
+private actor CropRecordingLoader: PhotoAssetLoading {
+    private(set) var receivedCrop: HeroCrop?
+
+    func thumbnail(for reference: AssetReference, maximumPixelSize: Int) throws -> Data {
+        Data([1])
+    }
+
+    func thumbnail(for reference: AssetReference, maximumPixelSize: Int, crop: HeroCrop?) throws -> Data {
+        receivedCrop = crop
+        return Data([2])
+    }
+}
+
 @MainActor
 final class PhotoThumbnailModelsTests: XCTestCase {
+    func testHeroThumbnailPassesSelectedCropToLoader() async throws {
+        let loader = CropRecordingLoader()
+        let model = HeroPhotoViewModel(loader: loader)
+        let crop = try HeroCrop(x: 0.1, y: 0.2, width: 0.8, height: 0.7)
+
+        await model.load(.init(id: "hero", origin: .testFixture), crop: crop)
+        let receivedCrop = await loader.receivedCrop
+
+        XCTAssertEqual(receivedCrop, crop)
+        XCTAssertEqual(model.thumbnailState, .loaded(Data([2])))
+    }
+
     func testHeroThumbnailLoadsThroughBoundedLoader() async {
         let data = Data([1, 2, 3])
         let loader = ThumbnailLoaderStub(results: ["hero": [.success(data)]])

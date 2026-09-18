@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import ImageIO
 import MosaicCore
 import MosaicFeatures
@@ -59,6 +60,14 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
     }
 
     public func thumbnail(for reference: AssetReference, maximumPixelSize: Int) throws -> Data {
+        try thumbnail(for: reference, maximumPixelSize: maximumPixelSize, crop: nil)
+    }
+
+    public func thumbnail(
+        for reference: AssetReference,
+        maximumPixelSize: Int,
+        crop: HeroCrop?
+    ) throws -> Data {
         guard
             reference.origin == .photoPicker,
             UUID(uuidString: reference.id) != nil,
@@ -70,7 +79,7 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PhotoSelectionError.assetUnavailable(reference.id)
         }
-        return try Self.downsample(data: Data(contentsOf: url), maximumPixelSize: maximumPixelSize)
+        return try Self.downsample(data: Data(contentsOf: url), maximumPixelSize: maximumPixelSize, crop: crop)
     }
 
     public func removeCachedAsset(_ reference: AssetReference) throws {
@@ -93,7 +102,7 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
         directory.appendingPathComponent(identifier).appendingPathExtension("asset")
     }
 
-    private static func downsample(data: Data, maximumPixelSize: Int) throws -> Data {
+    private static func downsample(data: Data, maximumPixelSize: Int, crop: HeroCrop?) throws -> Data {
         guard
             let source = CGImageSourceCreateWithData(data as CFData, nil),
             let image = CGImageSourceCreateThumbnailAtIndex(
@@ -109,6 +118,26 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
             throw PhotoSelectionError.assetUnavailable("thumbnail-decode")
         }
 
+        let renderedImage: CGImage
+        if let crop {
+            let left = min(image.width - 1, Int((Double(image.width) * crop.x).rounded(.down)))
+            let top = min(image.height - 1, Int((Double(image.height) * crop.y).rounded(.down)))
+            let right = min(image.width, Int((Double(image.width) * (crop.x + crop.width)).rounded(.up)))
+            let bottom = min(image.height, Int((Double(image.height) * (crop.y + crop.height)).rounded(.up)))
+            let rectangle = CGRect(
+                x: CGFloat(left),
+                y: CGFloat(top),
+                width: CGFloat(max(1, right - left)),
+                height: CGFloat(max(1, bottom - top))
+            )
+            guard let cropped = image.cropping(to: rectangle) else {
+                throw PhotoSelectionError.assetUnavailable("thumbnail-crop")
+            }
+            renderedImage = cropped
+        } else {
+            renderedImage = image
+        }
+
         let output = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
             output as CFMutableData,
@@ -118,7 +147,7 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
         ) else {
             throw PhotoSelectionError.assetUnavailable("thumbnail-encode")
         }
-        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.82] as CFDictionary)
+        CGImageDestinationAddImage(destination, renderedImage, [kCGImageDestinationLossyCompressionQuality: 0.82] as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {
             throw PhotoSelectionError.assetUnavailable("thumbnail-encode")
         }
