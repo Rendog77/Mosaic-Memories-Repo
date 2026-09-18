@@ -20,6 +20,21 @@ final class CreationWorkflowTests: XCTestCase {
         XCTAssertNil(workflow.project.heroCrop)
     }
 
+    func testCropPresetsHaveValidGeometryAndOriginalResets() {
+        for preset in HeroCropPreset.allCases {
+            XCTAssertEqual(HeroCropPreset.selected(for: preset.crop), preset)
+            if preset != .original {
+                XCTAssertNotNil(preset.crop)
+            }
+        }
+        var workflow = CreationWorkflow()
+        workflow.selectHero(.init(id: "hero", origin: .testFixture))
+        workflow.setHeroCrop(HeroCropPreset.center.crop)
+        XCTAssertEqual(workflow.project.heroCrop, HeroCropPreset.center.crop)
+        workflow.setHeroCrop(HeroCropPreset.original.crop)
+        XCTAssertNil(workflow.project.heroCrop)
+    }
+
     func testTooFewSourcesCannotAdvance() {
         var workflow = CreationWorkflow()
         XCTAssertThrowsError(try workflow.confirmSources([], minimum: 100))

@@ -230,4 +230,15 @@ final class CreationSessionTests: XCTestCase {
         XCTAssertEqual(session.workflow.project.sources, [source])
         XCTAssertEqual(session.message, "Changes could not be saved. Please try again.")
     }
+
+    func testCropChangeRollsBackWhenPersistenceFails() async {
+        let hero = AssetReference(id: "hero", origin: .testFixture)
+        let project = MosaicProject(hero: hero)
+        let session = CreationSession(store: SaveFailingProjectStore(), project: project)
+
+        await session.setHeroCrop(HeroCropPreset.center.crop)
+
+        XCTAssertNil(session.workflow.project.heroCrop)
+        XCTAssertEqual(session.message, "Changes could not be saved. Please try again.")
+    }
 }

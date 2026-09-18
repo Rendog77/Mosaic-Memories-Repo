@@ -31,7 +31,7 @@ public struct CreationWorkflow: Equatable, Sendable {
         step = .memories
     }
 
-    public mutating func setHeroCrop(_ crop: HeroCrop) {
+    public mutating func setHeroCrop(_ crop: HeroCrop?) {
         project.heroCrop = crop
         touch()
     }

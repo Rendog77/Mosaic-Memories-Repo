@@ -6,6 +6,7 @@ This folder contains the production modules as a Swift Package plus a declarativ
 
 - Versioned, Codable project recipes and asset references.
 - Schema 2 persists a normalized hero-crop rectangle; older projects migrate with no crop, and choosing a new hero clears the prior crop.
+- Hero review offers accessible framing presets with a visual crop guide and an Original reset; image processing will apply the saved crop in the next slice.
 - Protocol boundary for the mosaic engine.
 - Atomic JSON project persistence behind an actor and protocol.
 - Typed, allowlisted analytics events that cannot accept arbitrary fields.

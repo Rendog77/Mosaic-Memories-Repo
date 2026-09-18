@@ -164,7 +164,43 @@ private struct MemorySelectionScreen: View {
             if session.workflow.project.hero != nil {
                 ThumbnailView(state: heroModel.thumbnailState, emptySystemImage: "photo.fill")
                     .frame(width: 160, height: 120)
+                    .overlay {
+                        if let crop = session.workflow.project.heroCrop {
+                            GeometryReader { geometry in
+                                Rectangle()
+                                    .strokeBorder(.white, lineWidth: 3)
+                                    .shadow(color: .black, radius: 2)
+                                    .frame(
+                                        width: geometry.size.width * crop.width,
+                                        height: geometry.size.height * crop.height
+                                    )
+                                    .position(
+                                        x: geometry.size.width * (crop.x + crop.width / 2),
+                                        y: geometry.size.height * (crop.y + crop.height / 2)
+                                    )
+                            }
+                            .accessibilityHidden(true)
+                        }
+                    }
                     .accessibilityLabel("Selected hero photo")
+                Text("Frame your hero")
+                    .font(.headline)
+                Text("Choose the area to feature. The outline is a guide; image cropping is connected in the next step.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                HStack(spacing: MosaicDesign.compactSpacing) {
+                    ForEach(HeroCropPreset.allCases, id: \.self) { preset in
+                        Button(preset.title) {
+                            Task { await session.setHeroCrop(preset.crop) }
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityValue(
+                            HeroCropPreset.selected(for: session.workflow.project.heroCrop) == preset
+                                ? "Selected" : "Not selected"
+                        )
+                    }
+                }
             }
             Text("Select at least 100 photos. You will review them before anything is generated.")
                 .foregroundStyle(.secondary)

@@ -69,9 +69,13 @@ public final class CreationSession: ObservableObject {
         await persist(event: .heroSelected, fields: [.workflowStep: "memories"])
     }
 
-    public func setHeroCrop(_ crop: HeroCrop) async {
+    public func setHeroCrop(_ crop: HeroCrop?) async {
+        guard workflow.project.hero != nil else { return }
+        let previousWorkflow = workflow
         workflow.setHeroCrop(crop)
-        await persist()
+        if !(await persist()) {
+            workflow = previousWorkflow
+        }
     }
 
     public func requestHeroSelection() async {
