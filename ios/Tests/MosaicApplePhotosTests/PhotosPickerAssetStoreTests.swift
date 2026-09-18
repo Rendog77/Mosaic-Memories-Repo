@@ -101,30 +101,44 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = PhotosPickerAssetStore(directory: directory)
-        let reference = try await store.registerImportedData(makeOrientedJPEG())
+        let reference = try await store.registerImportedData(makeOrientedJPEG(width: 20, height: 10))
         let upperHalf = try HeroCrop(x: 0, y: 0, width: 1, height: 0.5)
 
+        let fullThumbnail = try await store.thumbnail(for: reference, maximumPixelSize: 64)
+        let fullSource = try XCTUnwrap(CGImageSourceCreateWithData(fullThumbnail as CFData, nil))
+        let fullProperties = try XCTUnwrap(
+            CGImageSourceCopyPropertiesAtIndex(fullSource, 0, nil) as? [CFString: Any]
+        )
         let thumbnail = try await store.thumbnail(for: reference, maximumPixelSize: 64, crop: upperHalf)
         let source = try XCTUnwrap(CGImageSourceCreateWithData(thumbnail as CFData, nil))
         let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
 
-        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 1)
-        XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 1)
+        XCTAssertEqual(fullProperties[kCGImagePropertyPixelWidth] as? Int, 10)
+        XCTAssertEqual(fullProperties[kCGImagePropertyPixelHeight] as? Int, 20)
+        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 10)
+        XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 10)
     }
 
     func testHeroCropChangesUnrotatedThumbnailDimensions() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = PhotosPickerAssetStore(directory: directory)
-        let reference = try await store.registerImportedData(makeOrientedJPEG(orientation: 1))
+        let reference = try await store.registerImportedData(makeOrientedJPEG(orientation: 1, width: 20, height: 10))
         let leftHalf = try HeroCrop(x: 0, y: 0, width: 0.5, height: 1)
 
+        let fullThumbnail = try await store.thumbnail(for: reference, maximumPixelSize: 64)
+        let fullSource = try XCTUnwrap(CGImageSourceCreateWithData(fullThumbnail as CFData, nil))
+        let fullProperties = try XCTUnwrap(
+            CGImageSourceCopyPropertiesAtIndex(fullSource, 0, nil) as? [CFString: Any]
+        )
         let thumbnail = try await store.thumbnail(for: reference, maximumPixelSize: 64, crop: leftHalf)
         let source = try XCTUnwrap(CGImageSourceCreateWithData(thumbnail as CFData, nil))
         let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
 
-        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 1)
-        XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 1)
+        XCTAssertEqual(fullProperties[kCGImagePropertyPixelWidth] as? Int, 20)
+        XCTAssertEqual(fullProperties[kCGImagePropertyPixelHeight] as? Int, 10)
+        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 10)
+        XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 10)
     }
 
     func testOversizedImageIsRejectedBeforeCaching() async throws {
@@ -257,24 +271,33 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
 
     private static let onePixelPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
-    private func makeOrientedJPEG(orientation: Int = 6) throws -> Data {
+    private func makeOrientedJPEG(
+        orientation: Int = 6,
+        width: Int = 2,
+        height: Int = 1
+    ) throws -> Data {
         let colourSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
         let context = try XCTUnwrap(
             CGContext(
                 data: nil,
-                width: 2,
-                height: 1,
+                width: width,
+                height: height,
                 bitsPerComponent: 8,
-                bytesPerRow: 8,
+                bytesPerRow: width * 4,
                 space: colourSpace,
                 bitmapInfo: bitmapInfo.rawValue
             )
         )
         context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
-        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        context.fill(CGRect(x: 0, y: 0, width: CGFloat(width / 2), height: CGFloat(height)))
         context.setFillColor(CGColor(red: 0, green: 0, blue: 1, alpha: 1))
-        context.fill(CGRect(x: 1, y: 0, width: 1, height: 1))
+        context.fill(CGRect(
+            x: CGFloat(width / 2),
+            y: 0,
+            width: CGFloat(width / 2),
+            height: CGFloat(height)
+        ))
 
         let image = try XCTUnwrap(context.makeImage())
         let output = NSMutableData()
