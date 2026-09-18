@@ -17,6 +17,9 @@ targets:
     dependencies:
       - package: MosaicMemoriesPackage
         product: MosaicApplePhotos
+    scheme:
+      testTargets:
+        - MosaicMemoriesUITests
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mosaicmemories.app
@@ -29,3 +32,14 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
         CODE_SIGN_STYLE: Automatic
+  MosaicMemoriesUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - AppUITests
+    dependencies:
+      - target: MosaicMemories
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mosaicmemories.app.uitests
+        SWIFT_VERSION: 5.9

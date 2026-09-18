@@ -31,3 +31,5 @@ jobs:
         run: bash ci/smoke-ios-simulator.sh iPhone
       - name: Launch and relaunch application on iPad Simulator
         run: bash ci/smoke-ios-simulator.sh iPad
+      - name: Test native photo-picker presentation on iPhone Simulator
+        run: bash ci/test-picker-ui.sh
