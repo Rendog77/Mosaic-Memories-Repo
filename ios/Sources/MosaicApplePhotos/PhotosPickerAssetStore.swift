@@ -130,10 +130,30 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
                 width: CGFloat(max(1, right - left)),
                 height: CGFloat(max(1, bottom - top))
             )
-            guard let cropped = image.cropping(to: rectangle) else {
+            guard let cropped = image.cropping(to: rectangle),
+                  cropped.width == Int(rectangle.width),
+                  cropped.height == Int(rectangle.height) else {
                 throw PhotoSelectionError.assetUnavailable("thumbnail-crop")
             }
-            renderedImage = cropped
+            guard let context = CGContext(
+                data: nil,
+                width: cropped.width,
+                height: cropped.height,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else {
+                throw PhotoSelectionError.assetUnavailable("thumbnail-crop")
+            }
+            context.draw(
+                cropped,
+                in: CGRect(x: 0, y: 0, width: CGFloat(cropped.width), height: CGFloat(cropped.height))
+            )
+            guard let rasterized = context.makeImage() else {
+                throw PhotoSelectionError.assetUnavailable("thumbnail-crop")
+            }
+            renderedImage = rasterized
         } else {
             renderedImage = image
         }
