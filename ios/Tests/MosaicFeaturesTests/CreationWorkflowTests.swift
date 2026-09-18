@@ -9,6 +9,17 @@ final class CreationWorkflowTests: XCTestCase {
         XCTAssertEqual(workflow.step, .memories)
     }
 
+    func testChangingHeroClearsItsCrop() throws {
+        var workflow = CreationWorkflow()
+        workflow.selectHero(.init(id: "first", origin: .testFixture))
+        let crop = try HeroCrop(x: 0.1, y: 0.1, width: 0.8, height: 0.8)
+        workflow.setHeroCrop(crop)
+        XCTAssertEqual(workflow.project.heroCrop, crop)
+
+        workflow.selectHero(.init(id: "second", origin: .testFixture))
+        XCTAssertNil(workflow.project.heroCrop)
+    }
+
     func testTooFewSourcesCannotAdvance() {
         var workflow = CreationWorkflow()
         XCTAssertThrowsError(try workflow.confirmSources([], minimum: 100))

@@ -53,6 +53,8 @@ final class CreationSessionTests: XCTestCase {
         let session = CreationSession(store: store)
 
         await session.selectHero(.init(id: "hero", origin: .testFixture))
+        let crop = try HeroCrop(x: 0.1, y: 0.2, width: 0.8, height: 0.7)
+        await session.setHeroCrop(crop)
         let sources = (0..<100).map { AssetReference(id: "source-\($0)", origin: .testFixture) }
         await session.reviewSources(sources)
         await session.confirmSources()
@@ -61,6 +63,7 @@ final class CreationSessionTests: XCTestCase {
         await restored.restoreMostRecentProject()
 
         XCTAssertEqual(restored.workflow.project, session.workflow.project)
+        XCTAssertEqual(restored.workflow.project.heroCrop, crop)
         XCTAssertEqual(restored.workflow.step, .preview)
     }
 

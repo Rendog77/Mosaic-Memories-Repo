@@ -23,6 +23,9 @@ public struct DefaultProjectMigrator: ProjectMigrating {
             case 0:
                 document = try migrateVersionZeroToOne(document)
                 version = 1
+            case 1:
+                document["schemaVersion"] = 2
+                version = 2
             default:
                 throw ProjectStoreError.noMigrationPath(
                     from: version,
@@ -49,4 +52,3 @@ public struct DefaultProjectMigrator: ProjectMigrating {
         return document
     }
 }
-

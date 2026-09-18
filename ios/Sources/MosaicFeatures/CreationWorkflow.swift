@@ -26,8 +26,14 @@ public struct CreationWorkflow: Equatable, Sendable {
 
     public mutating func selectHero(_ hero: AssetReference) {
         project.hero = hero
+        project.heroCrop = nil
         touch()
         step = .memories
+    }
+
+    public mutating func setHeroCrop(_ crop: HeroCrop) {
+        project.heroCrop = crop
+        touch()
     }
 
     public mutating func confirmSources(_ sources: [AssetReference], minimum: Int = 100) throws {

@@ -69,6 +69,11 @@ public final class CreationSession: ObservableObject {
         await persist(event: .heroSelected, fields: [.workflowStep: "memories"])
     }
 
+    public func setHeroCrop(_ crop: HeroCrop) async {
+        workflow.setHeroCrop(crop)
+        await persist()
+    }
+
     public func requestHeroSelection() async {
         photoSelectionState = .selectingHero
         message = nil

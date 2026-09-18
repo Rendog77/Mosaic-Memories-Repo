@@ -1,7 +1,7 @@
 import Foundation
 
 public struct MosaicProject: Codable, Equatable, Identifiable, Sendable {
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
 
     public let id: UUID
     public var schemaVersion: Int
@@ -9,6 +9,7 @@ public struct MosaicProject: Codable, Equatable, Identifiable, Sendable {
     public var updatedAt: Date
     public var title: String
     public var hero: AssetReference?
+    public var heroCrop: HeroCrop?
     public var sources: [AssetReference]
     public var recipe: MosaicRecipe
 
@@ -19,6 +20,7 @@ public struct MosaicProject: Codable, Equatable, Identifiable, Sendable {
         updatedAt: Date = Date(),
         title: String = "Untitled Mosaic",
         hero: AssetReference? = nil,
+        heroCrop: HeroCrop? = nil,
         sources: [AssetReference] = [],
         recipe: MosaicRecipe = .init()
     ) {
@@ -28,9 +30,45 @@ public struct MosaicProject: Codable, Equatable, Identifiable, Sendable {
         self.updatedAt = updatedAt
         self.title = title
         self.hero = hero
+        self.heroCrop = heroCrop
         self.sources = sources
         self.recipe = recipe
     }
+}
+
+public struct HeroCrop: Codable, Equatable, Sendable {
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+
+    public init(x: Double, y: Double, width: Double, height: Double) throws {
+        guard x.isFinite, y.isFinite, width.isFinite, height.isFinite,
+              x >= 0, y >= 0, width > 0, height > 0,
+              x + width <= 1, y + height <= 1 else {
+            throw HeroCropError.invalidBounds
+        }
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+
+    private enum CodingKeys: String, CodingKey { case x, y, width, height }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            x: values.decode(Double.self, forKey: .x),
+            y: values.decode(Double.self, forKey: .y),
+            width: values.decode(Double.self, forKey: .width),
+            height: values.decode(Double.self, forKey: .height)
+        )
+    }
+}
+
+public enum HeroCropError: Error, Equatable, Sendable {
+    case invalidBounds
 }
 
 public struct AssetReference: Codable, Equatable, Hashable, Sendable {

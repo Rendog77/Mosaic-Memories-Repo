@@ -5,6 +5,7 @@ This folder contains the production modules as a Swift Package plus a declarativ
 ## What is available now
 
 - Versioned, Codable project recipes and asset references.
+- Schema 2 persists a normalized hero-crop rectangle; older projects migrate with no crop, and choosing a new hero clears the prior crop.
 - Protocol boundary for the mosaic engine.
 - Atomic JSON project persistence behind an actor and protocol.
 - Typed, allowlisted analytics events that cannot accept arbitrary fields.

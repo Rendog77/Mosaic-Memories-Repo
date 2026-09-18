@@ -69,8 +69,26 @@ final class ProjectStoreTests: XCTestCase {
         let migrated = try await store.load(id: original.id)
 
         XCTAssertEqual(migrated, original)
-        XCTAssertEqual(migrated?.schemaVersion, 1)
+        XCTAssertEqual(migrated?.schemaVersion, 2)
         XCTAssertEqual(migrated?.recipe.engineVersion, 1)
+    }
+
+    func testVersionOneProjectMigratesWithoutCrop() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let original = MosaicProject(title: "Before crop")
+        let encoded = try JSONEncoder().encode(original)
+        var document = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        document["schemaVersion"] = 1
+        document["heroCrop"] = nil
+        let file = directory.appendingPathComponent(original.id.uuidString).appendingPathExtension("json")
+        try JSONSerialization.data(withJSONObject: document).write(to: file)
+
+        let migrated = try await JSONProjectStore(directory: directory).load(id: original.id)
+
+        XCTAssertEqual(migrated, original)
+        XCTAssertNil(migrated?.heroCrop)
     }
 
     func testMigratorRejectsFutureSchema() throws {
