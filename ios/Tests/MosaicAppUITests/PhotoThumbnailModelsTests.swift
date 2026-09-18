@@ -50,6 +50,21 @@ final class PhotoThumbnailModelsTests: XCTestCase {
         XCTAssertEqual(model.thumbnailState, .loaded(Data([2])))
     }
 
+    func testPreviewLoadsSavedHeroFramingFromProject() async throws {
+        let loader = CropRecordingLoader()
+        let model = HeroPhotoViewModel(loader: loader)
+        let hero = AssetReference(id: "saved-hero", origin: .testFixture)
+        let crop = try HeroCrop(x: 0.1, y: 0.2, width: 0.8, height: 0.7)
+
+        await model.load(project: MosaicProject(hero: hero, heroCrop: crop))
+        let receivedCrop = await loader.receivedCrop
+
+        XCTAssertEqual(model.reference, hero)
+        XCTAssertEqual(model.crop, crop)
+        XCTAssertEqual(receivedCrop, crop)
+        XCTAssertEqual(model.thumbnailState, .loaded(Data([2])))
+    }
+
     func testHeroThumbnailLoadsThroughBoundedLoader() async {
         let data = Data([1, 2, 3])
         let loader = ThumbnailLoaderStub(results: ["hero": [.success(data)]])

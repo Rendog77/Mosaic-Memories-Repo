@@ -88,13 +88,7 @@ public struct MosaicCreationView: View {
                 onRemoveSource: onRemoveSource
             )
         case .preview:
-            StepCard(
-                title: "Create your mosaic",
-                detail: "The preview engine will build the first recognisable composition here.",
-                actionTitle: "Continue to editor"
-            ) {
-                await session.move(to: .edit)
-            }
+            PreviewPreparationScreen(session: session, heroModel: heroModel)
         case .edit:
             StepCard(
                 title: "Make it yours",
@@ -110,6 +104,35 @@ public struct MosaicCreationView: View {
                 actionTitle: "Start another mosaic"
             ) {
                 await session.startNewProject()
+            }
+        }
+    }
+}
+
+private struct PreviewPreparationScreen: View {
+    @ObservedObject var session: CreationSession
+    @ObservedObject var heroModel: HeroPhotoViewModel
+
+    var body: some View {
+        VStack(spacing: MosaicDesign.standardSpacing) {
+            Text("Your framed photo")
+                .font(.title.bold())
+            ThumbnailView(state: heroModel.thumbnailState, emptySystemImage: "photo")
+                .frame(maxWidth: 420, maxHeight: 320)
+                .aspectRatio(4 / 3, contentMode: .fit)
+                .accessibilityLabel("Hero photo with selected framing")
+            StepCard(
+                title: "Create your mosaic",
+                detail: "The preview engine will build the first recognisable composition from this framing.",
+                actionTitle: "Continue to editor"
+            ) {
+                await session.move(to: .edit)
+            }
+        }
+        .task(id: session.workflow.project.heroCrop) {
+            let project = session.workflow.project
+            if heroModel.reference != project.hero || heroModel.crop != project.heroCrop {
+                await heroModel.load(project: project)
             }
         }
     }

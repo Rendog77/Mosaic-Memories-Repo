@@ -22,6 +22,14 @@ public final class HeroPhotoViewModel: ObservableObject {
         self.loader = loader
     }
 
+    public func load(project: MosaicProject, maximumPixelSize: Int = 1_024) async {
+        guard let hero = project.hero else {
+            clear()
+            return
+        }
+        await load(hero, crop: project.heroCrop, maximumPixelSize: maximumPixelSize)
+    }
+
     public func load(_ reference: AssetReference, crop: HeroCrop? = nil, maximumPixelSize: Int = 1_024) async {
         precondition(maximumPixelSize > 0)
         self.reference = reference
