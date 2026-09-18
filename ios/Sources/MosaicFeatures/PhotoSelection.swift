@@ -33,6 +33,10 @@ public protocol PhotoAssetLoading: Sendable {
     func thumbnail(for reference: AssetReference, maximumPixelSize: Int, crop: HeroCrop?) async throws -> Data
 }
 
+public protocol PhotoAssetChecking: Sendable {
+    func isAvailable(_ reference: AssetReference) async -> Bool
+}
+
 public extension PhotoAssetLoading {
     func thumbnail(for reference: AssetReference, maximumPixelSize: Int, crop: HeroCrop?) async throws -> Data {
         try await thumbnail(for: reference, maximumPixelSize: maximumPixelSize)

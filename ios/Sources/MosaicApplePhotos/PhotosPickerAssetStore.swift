@@ -5,7 +5,7 @@ import MosaicCore
 import MosaicFeatures
 import UniformTypeIdentifiers
 
-public actor PhotosPickerAssetStore: PhotoAssetLoading {
+public actor PhotosPickerAssetStore: PhotoAssetLoading, PhotoAssetChecking {
     private let directory: URL
     private let validationPolicy: PhotoImportValidationPolicy
 
@@ -61,6 +61,12 @@ public actor PhotosPickerAssetStore: PhotoAssetLoading {
 
     public func thumbnail(for reference: AssetReference, maximumPixelSize: Int) throws -> Data {
         try makeThumbnail(for: reference, maximumPixelSize: maximumPixelSize, crop: nil)
+    }
+
+    public func isAvailable(_ reference: AssetReference) -> Bool {
+        guard reference.origin == .photoPicker,
+              UUID(uuidString: reference.id) != nil else { return false }
+        return FileManager.default.fileExists(atPath: fileURL(for: reference.id).path)
     }
 
     public func thumbnail(

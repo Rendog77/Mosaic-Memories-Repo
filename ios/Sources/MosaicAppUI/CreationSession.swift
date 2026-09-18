@@ -18,14 +18,18 @@ public enum PhotoSelectionState: Equatable, Sendable {
 public final class CreationSession: ObservableObject {
     @Published public private(set) var workflow: CreationWorkflow
     @Published public private(set) var isSaving = false
+    @Published public private(set) var isCheckingAssets = false
     @Published public private(set) var message: String?
     @Published public private(set) var photoSelectionState: PhotoSelectionState = .idle
+    @Published public private(set) var missingAssetIDs: Set<String> = []
+    @Published public private(set) var isHeroMissing = false
 
     private let store: any ProjectStoring
     private let analytics: any AnalyticsRecording
     private let heroSelector: any HeroPhotoSelecting
     private let sourceSelector: any SourcePhotosSelecting
     private let sourceValidator: SourceSelectionValidator
+    private let assetChecker: (any PhotoAssetChecking)?
 
     public init(
         store: any ProjectStoring,
@@ -33,6 +37,7 @@ public final class CreationSession: ObservableObject {
         heroSelector: any HeroPhotoSelecting = UnavailablePhotoSelector(),
         sourceSelector: any SourcePhotosSelecting = UnavailablePhotoSelector(),
         sourceValidator: SourceSelectionValidator = .init(),
+        assetChecker: (any PhotoAssetChecking)? = nil,
         project: MosaicProject = .init(),
         step: CreationStep? = nil
     ) {
@@ -41,10 +46,13 @@ public final class CreationSession: ObservableObject {
         self.heroSelector = heroSelector
         self.sourceSelector = sourceSelector
         self.sourceValidator = sourceValidator
+        self.assetChecker = assetChecker
         self.workflow = CreationWorkflow(project: project, step: step ?? Self.inferredStep(for: project))
     }
 
     public func startNewProject() async {
+        missingAssetIDs = []
+        isHeroMissing = false
         workflow = CreationWorkflow()
         await persist(
             event: .projectStarted,
@@ -56,6 +64,8 @@ public final class CreationSession: ObservableObject {
         do {
             let projects = try await store.list()
             if let project = projects.first {
+                missingAssetIDs = []
+                isHeroMissing = false
                 workflow = CreationWorkflow(project: project, step: Self.inferredStep(for: project))
             }
             message = nil
@@ -65,8 +75,10 @@ public final class CreationSession: ObservableObject {
     }
 
     public func selectHero(_ reference: AssetReference) async {
+        missingAssetIDs = []
+        isHeroMissing = false
         workflow.selectHero(reference)
-        await persist(event: .heroSelected, fields: [.workflowStep: "memories"])
+        await persist(event: .heroSelected, fields: [.workflowStep: Self.analyticsName(for: workflow.step)])
     }
 
     public func setHeroCrop(_ crop: HeroCrop?) async {
@@ -96,6 +108,7 @@ public final class CreationSession: ObservableObject {
     }
 
     public func reviewSources(_ references: [AssetReference]) async {
+        missingAssetIDs = []
         workflow.reviewSources(references)
         await persist()
     }
@@ -150,6 +163,7 @@ public final class CreationSession: ObservableObject {
             workflow = originalWorkflow
             return false
         }
+        missingAssetIDs.remove(id)
         return true
     }
 
@@ -158,7 +172,36 @@ public final class CreationSession: ObservableObject {
     }
 
     public func confirmSources(minimum: Int = 100) async {
+        guard !isCheckingAssets else { return }
+        isCheckingAssets = true
+        defer { isCheckingAssets = false }
         do {
+            if case .needsMore(let required, let actual) = workflow.sourceReadiness(minimum: minimum) {
+                throw CreationWorkflowError.insufficientSources(required: required, actual: actual)
+            }
+            if let assetChecker {
+                let project = workflow.project
+                if let hero = project.hero, !(await assetChecker.isAvailable(hero)) {
+                    isHeroMissing = true
+                    message = "Your hero photo is no longer available. Choose it again before creating a mosaic."
+                    return
+                }
+                isHeroMissing = false
+                var missingIDs = Set<String>()
+                for reference in project.sources {
+                    if !(await assetChecker.isAvailable(reference)) {
+                        missingIDs.insert(reference.id)
+                    }
+                }
+                guard workflow.project == project else { return }
+                missingAssetIDs = missingIDs
+                if !missingIDs.isEmpty {
+                    message = "\(missingIDs.count) selected \(missingIDs.count == 1 ? "photo is" : "photos are") no longer available. Remove the marked photos or select them again."
+                    return
+                }
+            }
+            missingAssetIDs = []
+            isHeroMissing = false
             try workflow.confirmReviewedSources(minimum: minimum)
             message = nil
             await persist(

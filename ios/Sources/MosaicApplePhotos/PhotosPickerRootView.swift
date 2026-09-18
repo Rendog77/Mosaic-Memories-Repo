@@ -26,10 +26,10 @@ public struct PhotosPickerRootView: View {
                 ProjectLibraryView(
                     session: librarySession,
                     onNewProject: {
-                        creationSession = CreationSession(store: store)
+                        creationSession = CreationSession(store: store, assetChecker: assetStore)
                     },
                     onContinueProject: { project in
-                        creationSession = CreationSession(store: store, project: project)
+                        creationSession = CreationSession(store: store, assetChecker: assetStore, project: project)
                     }
                 )
             }

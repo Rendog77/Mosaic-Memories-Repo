@@ -166,6 +166,8 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
     func testMissingCachedAssetReturnsTypedFailure() async {
         let store = PhotosPickerAssetStore(directory: FileManager.default.temporaryDirectory)
         let reference = AssetReference(id: UUID().uuidString, origin: .photoPicker)
+        let isAvailable = await store.isAvailable(reference)
+        XCTAssertFalse(isAvailable)
         do {
             _ = try await store.thumbnail(for: reference, maximumPixelSize: 64)
             XCTFail("Expected unavailable asset")
@@ -174,6 +176,20 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    func testAvailabilityReflectsCachedAssetRemoval() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PhotosPickerAssetStore(directory: directory)
+        let png = try XCTUnwrap(Data(base64Encoded: Self.onePixelPNG))
+        let reference = try await store.registerImportedData(png)
+
+        let availableBeforeRemoval = await store.isAvailable(reference)
+        XCTAssertTrue(availableBeforeRemoval)
+        try await store.removeCachedAsset(reference)
+        let availableAfterRemoval = await store.isAvailable(reference)
+        XCTAssertFalse(availableAfterRemoval)
     }
 
     func testUnsupportedImageIsRejectedBeforeCaching() async throws {

@@ -84,6 +84,7 @@ public struct MosaicCreationView: View {
             SourceReviewScreen(
                 session: session,
                 model: sourceModel,
+                onChooseHero: onChooseHero,
                 onChooseSources: onChooseSources,
                 onRemoveSource: onRemoveSource
             )
@@ -233,6 +234,7 @@ private struct MemorySelectionScreen: View {
 private struct SourceReviewScreen: View {
     @ObservedObject var session: CreationSession
     @ObservedObject var model: SourceReviewViewModel
+    let onChooseHero: (() -> Void)?
     let onChooseSources: (() -> Void)?
     let onRemoveSource: (@MainActor (AssetReference) async -> Void)?
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: MosaicDesign.compactSpacing)]
@@ -263,7 +265,7 @@ private struct SourceReviewScreen: View {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: MosaicDesign.compactSpacing) {
                     ForEach(model.items) { item in
-                        SourceThumbnailCell(item: item) {
+                        SourceThumbnailCell(item: item, isMissing: session.missingAssetIDs.contains(item.id)) {
                             Task {
                                 if await session.removeSource(id: item.id) {
                                     model.remove(id: item.id)
@@ -281,6 +283,15 @@ private struct SourceReviewScreen: View {
             }
 
             HStack {
+                if session.isHeroMissing {
+                    Button("Replace hero photo") {
+                        if let onChooseHero {
+                            onChooseHero()
+                        } else {
+                            Task { await session.requestHeroSelection() }
+                        }
+                    }
+                }
                 if model.items.contains(where: { if case .failed = $0.state { return true }; return false }) {
                     Button("Retry failed thumbnails") {
                         Task { await model.retryFailed() }
@@ -292,7 +303,7 @@ private struct SourceReviewScreen: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(MosaicDesign.accent)
-                .disabled(!isReady)
+                .disabled(!isReady || session.isCheckingAssets)
             }
         }
         .task(id: session.workflow.project.sources) {
@@ -318,6 +329,7 @@ private struct SourceReviewScreen: View {
 
 private struct SourceThumbnailCell: View {
     let item: SourceThumbnailItem
+    let isMissing: Bool
     let remove: () -> Void
 
     var body: some View {
@@ -332,6 +344,16 @@ private struct SourceThumbnailCell: View {
                 .buttonStyle(.plain)
                 .padding(4)
                 .accessibilityLabel("Remove photo")
+            }
+            .overlay(alignment: .bottom) {
+                if isMissing {
+                    Text("Missing")
+                        .font(.caption.bold())
+                        .padding(4)
+                        .background(.red, in: Capsule())
+                        .foregroundStyle(.white)
+                        .accessibilityLabel("Photo no longer available")
+                }
             }
             .accessibilityElement(children: .contain)
     }

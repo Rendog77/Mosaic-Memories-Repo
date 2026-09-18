@@ -20,6 +20,18 @@ final class CreationWorkflowTests: XCTestCase {
         XCTAssertNil(workflow.project.heroCrop)
     }
 
+    func testReplacingHeroKeepsSelectedSourcesInReview() {
+        var workflow = CreationWorkflow()
+        workflow.selectHero(.init(id: "old", origin: .testFixture))
+        let source = AssetReference(id: "source", origin: .testFixture)
+        workflow.reviewSources([source])
+
+        workflow.selectHero(.init(id: "new", origin: .testFixture))
+
+        XCTAssertEqual(workflow.step, .sourceReview)
+        XCTAssertEqual(workflow.project.sources, [source])
+    }
+
     func testCropPresetsHaveValidGeometryAndOriginalResets() {
         for preset in HeroCropPreset.allCases {
             XCTAssertEqual(HeroCropPreset.selected(for: preset.crop), preset)

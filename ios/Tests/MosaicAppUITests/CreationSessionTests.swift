@@ -22,6 +22,14 @@ private struct SourceSelectorStub: SourcePhotosSelecting {
     }
 }
 
+private struct MissingAssetChecker: PhotoAssetChecking {
+    let missingIDs: Set<String>
+
+    func isAvailable(_ reference: AssetReference) async -> Bool {
+        !missingIDs.contains(reference.id)
+    }
+}
+
 private actor RecordingAnalytics: AnalyticsRecording {
     private var events: [AnalyticsEvent] = []
 
@@ -73,6 +81,50 @@ final class CreationSessionTests: XCTestCase {
         await session.reviewSources([])
         await session.confirmSources()
         XCTAssertEqual(session.message, "Choose at least 100 photos. You currently have 0.")
+    }
+
+    func testMissingSourceBlocksConfirmationAndIsMarkedForRemoval() async {
+        let hero = AssetReference(id: "hero", origin: .testFixture)
+        let sources = [
+            AssetReference(id: "available", origin: .testFixture),
+            AssetReference(id: "missing", origin: .testFixture),
+        ]
+        let session = CreationSession(
+            store: InMemoryProjectStore(),
+            assetChecker: MissingAssetChecker(missingIDs: ["missing"])
+        )
+        await session.selectHero(hero)
+        await session.reviewSources(sources)
+
+        await session.confirmSources(minimum: 1)
+
+        XCTAssertEqual(session.workflow.step, .sourceReview)
+        XCTAssertEqual(session.missingAssetIDs, ["missing"])
+        XCTAssertEqual(session.message, "1 selected photo is no longer available. Remove the marked photos or select them again.")
+        XCTAssertFalse(session.isCheckingAssets)
+
+        await session.removeSource(id: "missing")
+        XCTAssertTrue(session.missingAssetIDs.isEmpty)
+        await session.confirmSources(minimum: 1)
+        XCTAssertEqual(session.workflow.step, .preview)
+    }
+
+    func testMissingHeroBlocksConfirmation() async {
+        let session = CreationSession(
+            store: InMemoryProjectStore(),
+            assetChecker: MissingAssetChecker(missingIDs: ["hero"])
+        )
+        await session.selectHero(.init(id: "hero", origin: .testFixture))
+        await session.reviewSources([.init(id: "source", origin: .testFixture)])
+
+        await session.confirmSources(minimum: 1)
+
+        XCTAssertEqual(session.workflow.step, .sourceReview)
+        XCTAssertEqual(session.message, "Your hero photo is no longer available. Choose it again before creating a mosaic.")
+        XCTAssertTrue(session.isHeroMissing)
+        await session.selectHero(.init(id: "replacement", origin: .testFixture))
+        XCTAssertFalse(session.isHeroMissing)
+        XCTAssertEqual(session.workflow.step, .sourceReview)
     }
 
     func testInjectedSelectorsAdvanceTheWorkflow() async {

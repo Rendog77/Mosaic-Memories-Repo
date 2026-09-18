@@ -28,7 +28,7 @@ public struct CreationWorkflow: Equatable, Sendable {
         project.hero = hero
         project.heroCrop = nil
         touch()
-        step = .memories
+        step = project.sources.isEmpty ? .memories : .sourceReview
     }
 
     public mutating func setHeroCrop(_ crop: HeroCrop?) {
