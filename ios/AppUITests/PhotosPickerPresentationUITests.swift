@@ -16,8 +16,8 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         chooseHero.tap()
 
         let cancelPicker = app.buttons["Cancel"].firstMatch
-        XCTAssertTrue(waitForHittable(cancelPicker))
-        cancelPicker.tap()
+        XCTAssertTrue(cancelPicker.waitForExistence(timeout: 10))
+        tapPickerCancel(in: app)
 
         XCTAssertTrue(chooseHero.waitForExistence(timeout: 10))
         XCTAssertTrue(chooseHero.isHittable)
@@ -36,7 +36,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         chooseHero.tap()
 
         let cancelPicker = app.buttons["Cancel"].firstMatch
-        XCTAssertTrue(waitForHittable(cancelPicker))
+        XCTAssertTrue(cancelPicker.waitForExistence(timeout: 10))
         tapFirstPickerPhoto(in: app)
 
         let framingTitle = app.staticTexts["Frame your hero"]
@@ -44,7 +44,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
             let addSelection = app.buttons.matching(
                 NSPredicate(format: "label BEGINSWITH 'Add'")
             ).firstMatch
-            if !waitForHittable(addSelection, timeout: 5) {
+            if !addSelection.waitForExistence(timeout: 5) {
                 attachPickerDiagnostics(from: app, name: "Picker after tapping seeded photo")
                 XCTFail("The seeded photo neither completed single selection nor enabled Add")
                 return
@@ -60,10 +60,11 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Choose source photos"].isHittable)
     }
 
-    private func waitForHittable(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
-        let predicate = NSPredicate(format: "exists == true AND hittable == true")
-        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
-        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    private func tapPickerCancel(in app: XCUIApplication) {
+        // The out-of-process picker intermittently reports a zero frame for Cancel.
+        app.windows.firstMatch.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.10, dy: 0.115)
+        ).tap()
     }
 
     private func tapFirstPickerPhoto(in app: XCUIApplication) {
