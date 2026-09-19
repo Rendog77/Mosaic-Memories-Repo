@@ -19,6 +19,7 @@ xcodebuild \
   -scheme MosaicMemories \
   -destination "platform=iOS Simulator,id=$device_id" \
   -derivedDataPath .build/app-derived \
+  -resultBundlePath .build/picker-ui.xcresult \
   -parallel-testing-enabled NO \
   CODE_SIGNING_ALLOWED=NO \
   test

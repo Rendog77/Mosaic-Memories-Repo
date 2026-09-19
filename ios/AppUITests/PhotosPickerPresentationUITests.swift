@@ -39,17 +39,21 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         XCTAssertTrue(waitForHittable(cancelPicker))
         tapFirstPickerPhoto(in: app, below: cancelPicker)
 
-        let addSelection = app.buttons["Add"].firstMatch
-        if !waitForHittable(addSelection) {
-            attachHierarchy(from: app, name: "Picker hierarchy after tapping seeded photo")
-            XCTFail("The seeded photo was not selected in the picker")
-            return
-        }
-        addSelection.tap()
-
         let framingTitle = app.staticTexts["Frame your hero"]
+        if !framingTitle.waitForExistence(timeout: 5) {
+            let addSelection = app.buttons.matching(
+                NSPredicate(format: "label BEGINSWITH 'Add'")
+            ).firstMatch
+            if !waitForHittable(addSelection, timeout: 5) {
+                attachPickerDiagnostics(from: app, name: "Picker after tapping seeded photo")
+                XCTFail("The seeded photo neither completed single selection nor enabled Add")
+                return
+            }
+            addSelection.tap()
+        }
+
         if !framingTitle.waitForExistence(timeout: 15) {
-            attachHierarchy(from: app, name: "Hierarchy after confirming seeded photo")
+            attachPickerDiagnostics(from: app, name: "After confirming seeded photo")
             XCTFail("Selecting the seeded photo did not advance to hero framing")
             return
         }
@@ -74,9 +78,14 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         window.coordinate(withNormalizedOffset: point).tap()
     }
 
-    private func attachHierarchy(from app: XCUIApplication, name: String) {
+    private func attachPickerDiagnostics(from app: XCUIApplication, name: String) {
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "\(name) screenshot"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+
         let hierarchy = XCTAttachment(string: app.debugDescription)
-        hierarchy.name = name
+        hierarchy.name = "\(name) accessibility hierarchy"
         hierarchy.lifetime = .keepAlways
         add(hierarchy)
     }

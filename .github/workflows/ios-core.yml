@@ -33,3 +33,17 @@ jobs:
         run: bash ci/smoke-ios-simulator.sh iPad
       - name: Test native photo-picker presentation on iPhone Simulator
         run: bash ci/test-picker-ui.sh
+      - name: Export picker test diagnostics
+        if: failure()
+        working-directory: ios
+        run: |
+          if [ -d .build/picker-ui.xcresult ]; then
+            xcrun xcresulttool export attachments --path .build/picker-ui.xcresult --output-path .build/picker-ui-attachments
+          fi
+      - name: Upload picker test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: picker-ui-diagnostics
+          path: ios/.build/picker-ui-attachments
+          if-no-files-found: ignore
