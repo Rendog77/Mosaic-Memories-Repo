@@ -60,6 +60,52 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Choose source photos"].isHittable)
     }
 
+    func testSelectingTwoSourcesReachesReview() {
+        let app = XCUIApplication()
+        app.launch()
+
+        let newMosaic = app.buttons["New mosaic"]
+        XCTAssertTrue(newMosaic.waitForExistence(timeout: 10))
+        newMosaic.tap()
+
+        let chooseHero = app.buttons["Choose hero photo"]
+        XCTAssertTrue(chooseHero.waitForExistence(timeout: 10))
+        chooseHero.tap()
+        XCTAssertTrue(app.buttons["Cancel"].firstMatch.waitForExistence(timeout: 10))
+        tapFirstPickerPhoto(in: app)
+
+        let chooseSources = app.buttons["Choose source photos"]
+        if !chooseSources.waitForExistence(timeout: 15) {
+            attachPickerDiagnostics(from: app, name: "Before source selection")
+            XCTFail("Hero selection did not reach the memories step")
+            return
+        }
+        chooseSources.tap()
+        XCTAssertTrue(app.buttons["Cancel"].firstMatch.waitForExistence(timeout: 10))
+
+        let pickerWindow = app.windows.firstMatch
+        pickerWindow.coordinate(withNormalizedOffset: CGVector(dx: 1.0 / 6.0, dy: 0.47)).tap()
+        pickerWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.47)).tap()
+
+        let addSelection = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Add'")
+        ).firstMatch
+        if !addSelection.waitForExistence(timeout: 10) {
+            attachPickerDiagnostics(from: app, name: "Source picker after selecting two tiles")
+            XCTFail("The source picker did not expose its Add action")
+            return
+        }
+        addSelection.tap()
+
+        let reviewTitle = app.staticTexts["Review your photos"]
+        if !reviewTitle.waitForExistence(timeout: 20) {
+            attachPickerDiagnostics(from: app, name: "After confirming two source photos")
+            XCTFail("Source selection did not reach review")
+            return
+        }
+        XCTAssertTrue(app.staticTexts["2 selected — choose 98 more"].exists)
+    }
+
     private func tapPickerCancel(in app: XCUIApplication) {
         // The out-of-process picker intermittently reports a zero frame for Cancel.
         app.windows.firstMatch.coordinate(
