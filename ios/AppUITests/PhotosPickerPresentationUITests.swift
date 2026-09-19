@@ -39,13 +39,19 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         XCTAssertTrue(waitForHittable(cancelPicker))
         tapFirstPickerPhoto(in: app, below: cancelPicker)
 
+        let addSelection = app.buttons["Add"].firstMatch
+        if !waitForHittable(addSelection) {
+            attachHierarchy(from: app, name: "Picker hierarchy after tapping seeded photo")
+            XCTFail("The seeded photo was not selected in the picker")
+            return
+        }
+        addSelection.tap()
+
         let framingTitle = app.staticTexts["Frame your hero"]
         if !framingTitle.waitForExistence(timeout: 15) {
-            let hierarchy = XCTAttachment(string: app.debugDescription)
-            hierarchy.name = "Accessibility hierarchy after selecting seeded photo"
-            hierarchy.lifetime = .keepAlways
-            add(hierarchy)
+            attachHierarchy(from: app, name: "Hierarchy after confirming seeded photo")
             XCTFail("Selecting the seeded photo did not advance to hero framing")
+            return
         }
         XCTAssertTrue(app.buttons["Choose source photos"].isHittable)
     }
@@ -66,5 +72,12 @@ final class PhotosPickerPresentationUITests: XCTestCase {
             dy: (gridTop + columnWidth / 2) / windowFrame.height
         )
         window.coordinate(withNormalizedOffset: point).tap()
+    }
+
+    private func attachHierarchy(from app: XCUIApplication, name: String) {
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = name
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
     }
 }
