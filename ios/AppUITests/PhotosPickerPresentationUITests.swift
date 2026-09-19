@@ -37,7 +37,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
 
         let cancelPicker = app.buttons["Cancel"].firstMatch
         XCTAssertTrue(waitForHittable(cancelPicker))
-        tapFirstPickerPhoto(in: app, below: cancelPicker)
+        tapFirstPickerPhoto(in: app)
 
         let framingTitle = app.staticTexts["Frame your hero"]
         if !framingTitle.waitForExistence(timeout: 5) {
@@ -66,15 +66,11 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
-    private func tapFirstPickerPhoto(in app: XCUIApplication, below cancelButton: XCUIElement) {
+    private func tapFirstPickerPhoto(in app: XCUIApplication) {
         let window = app.windows.firstMatch
-        let windowFrame = window.frame
-        let columnWidth = windowFrame.width / 3
-        let gridTop = cancelButton.frame.maxY + 56
-        let point = CGVector(
-            dx: (columnWidth / 2) / windowFrame.width,
-            dy: (gridTop + columnWidth / 2) / windowFrame.height
-        )
+        // On the CI simulator the system's privacy notice sits above the grid.
+        // The seeded image is the first (black) tile, centered near this point.
+        let point = CGVector(dx: 1.0 / 6.0, dy: 0.47)
         window.coordinate(withNormalizedOffset: point).tap()
     }
 
