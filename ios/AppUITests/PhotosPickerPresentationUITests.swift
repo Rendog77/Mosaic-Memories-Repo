@@ -108,7 +108,38 @@ final class PhotosPickerPresentationUITests: XCTestCase {
             XCTFail("Source selection did not reach review")
             return
         }
-        XCTAssertTrue(app.staticTexts["2 selected — choose 98 more"].exists)
+        let twoSelected = app.staticTexts["2 selected — choose 98 more"]
+        XCTAssertTrue(twoSelected.waitForExistence(timeout: 10))
+
+        let addPhotos = app.buttons["Add photos"]
+        XCTAssertTrue(addPhotos.waitForExistence(timeout: 10))
+        addPhotos.tap()
+        XCTAssertTrue(waitForPickerLayout(app.buttons["Cancel"].firstMatch))
+        app.windows.firstMatch.coordinate(
+            withNormalizedOffset: CGVector(dx: 5.0 / 6.0, dy: 0.47)
+        ).tap()
+
+        let addAnotherSelection = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Add'")
+        ).firstMatch
+        if !addAnotherSelection.waitForExistence(timeout: 10) {
+            attachPickerDiagnostics(from: app, name: "Source picker while adding another photo")
+            XCTFail("The source picker did not expose Add for the extra photo")
+            return
+        }
+        addAnotherSelection.tap()
+
+        let threeSelected = app.staticTexts["3 selected — choose 97 more"]
+        if !threeSelected.waitForExistence(timeout: 20) {
+            attachPickerDiagnostics(from: app, name: "Review after adding another photo")
+            XCTFail("Adding a source photo did not update review")
+            return
+        }
+
+        let removePhoto = app.buttons["Remove photo"].firstMatch
+        XCTAssertTrue(removePhoto.waitForExistence(timeout: 10))
+        removePhoto.tap()
+        XCTAssertTrue(twoSelected.waitForExistence(timeout: 10))
     }
 
     private func tapPickerCancel(in app: XCUIApplication) {
