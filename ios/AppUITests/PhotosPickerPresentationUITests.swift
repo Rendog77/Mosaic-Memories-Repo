@@ -16,9 +16,14 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         chooseHero.tap()
 
         let cancelPicker = app.buttons["Cancel"].firstMatch
-        XCTAssertTrue(cancelPicker.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForPickerLayout(cancelPicker))
         tapPickerCancel(in: app)
 
+        let dismissed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: cancelPicker
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 10), .completed)
         XCTAssertTrue(chooseHero.waitForExistence(timeout: 10))
         XCTAssertTrue(chooseHero.isHittable)
     }
@@ -36,7 +41,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         chooseHero.tap()
 
         let cancelPicker = app.buttons["Cancel"].firstMatch
-        XCTAssertTrue(cancelPicker.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForPickerLayout(cancelPicker))
         tapFirstPickerPhoto(in: app)
 
         let framingTitle = app.staticTexts["Frame your hero"]
@@ -71,7 +76,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         let chooseHero = app.buttons["Choose hero photo"]
         XCTAssertTrue(chooseHero.waitForExistence(timeout: 10))
         chooseHero.tap()
-        XCTAssertTrue(app.buttons["Cancel"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForPickerLayout(app.buttons["Cancel"].firstMatch))
         tapFirstPickerPhoto(in: app)
 
         let chooseSources = app.buttons["Choose source photos"]
@@ -81,7 +86,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
             return
         }
         chooseSources.tap()
-        XCTAssertTrue(app.buttons["Cancel"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForPickerLayout(app.buttons["Cancel"].firstMatch))
 
         let pickerWindow = app.windows.firstMatch
         pickerWindow.coordinate(withNormalizedOffset: CGVector(dx: 1.0 / 6.0, dy: 0.47)).tap()
@@ -111,6 +116,21 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         app.windows.firstMatch.coordinate(
             withNormalizedOffset: CGVector(dx: 0.10, dy: 0.115)
         ).tap()
+    }
+
+    private func waitForPickerLayout(_ cancelButton: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if cancelButton.exists {
+                let frame = cancelButton.frame
+                if frame.width > 0 && frame.height > 0 {
+                    Thread.sleep(forTimeInterval: 0.5)
+                    return true
+                }
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return false
     }
 
     private func tapFirstPickerPhoto(in app: XCUIApplication) {
