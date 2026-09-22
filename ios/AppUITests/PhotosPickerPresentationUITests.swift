@@ -46,9 +46,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
 
         let framingTitle = app.staticTexts["Frame your hero"]
         if !framingTitle.waitForExistence(timeout: 5) {
-            let addSelection = app.buttons.matching(
-                NSPredicate(format: "label BEGINSWITH 'Add'")
-            ).firstMatch
+            let addSelection = app.buttons["Add"].firstMatch
             if !addSelection.waitForExistence(timeout: 5) {
                 attachPickerDiagnostics(from: app, name: "Picker after tapping seeded photo")
                 XCTFail("The seeded photo neither completed single selection nor enabled Add")
@@ -91,9 +89,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         tapPickerPhoto(at: 0, in: app)
         tapPickerPhoto(at: 1, in: app)
 
-        let addSelection = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH 'Add'")
-        ).firstMatch
+        let addSelection = app.buttons["Add"].firstMatch
         if !addSelection.waitForExistence(timeout: 10) {
             attachPickerDiagnostics(from: app, name: "Source picker after selecting two tiles")
             XCTFail("The source picker did not expose its Add action")
@@ -116,9 +112,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         XCTAssertTrue(waitForPickerLayout(app.buttons["Cancel"].firstMatch))
         tapPickerPhoto(at: 2, in: app)
 
-        let addAnotherSelection = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH 'Add'")
-        ).firstMatch
+        let addAnotherSelection = app.buttons["Add"].firstMatch
         if !addAnotherSelection.waitForExistence(timeout: 10) {
             attachPickerDiagnostics(from: app, name: "Source picker while adding another photo")
             XCTFail("The source picker did not expose Add for the extra photo")
