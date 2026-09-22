@@ -88,9 +88,8 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         chooseSources.tap()
         XCTAssertTrue(waitForPickerLayout(app.buttons["Cancel"].firstMatch))
 
-        let pickerWindow = app.windows.firstMatch
-        pickerWindow.coordinate(withNormalizedOffset: CGVector(dx: 1.0 / 6.0, dy: 0.47)).tap()
-        pickerWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.47)).tap()
+        tapPickerPhoto(at: 0, in: app)
+        tapPickerPhoto(at: 1, in: app)
 
         let addSelection = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH 'Add'")
@@ -115,9 +114,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         XCTAssertTrue(addPhotos.waitForExistence(timeout: 10))
         addPhotos.tap()
         XCTAssertTrue(waitForPickerLayout(app.buttons["Cancel"].firstMatch))
-        app.windows.firstMatch.coordinate(
-            withNormalizedOffset: CGVector(dx: 5.0 / 6.0, dy: 0.47)
-        ).tap()
+        tapPickerPhoto(at: 2, in: app)
 
         let addAnotherSelection = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH 'Add'")
@@ -165,11 +162,27 @@ final class PhotosPickerPresentationUITests: XCTestCase {
     }
 
     private func tapFirstPickerPhoto(in app: XCUIApplication) {
-        let window = app.windows.firstMatch
-        // On the CI simulator the system's privacy notice sits above the grid.
-        // The seeded image is the first (black) tile, centered near this point.
-        let point = CGVector(dx: 1.0 / 6.0, dy: 0.47)
-        window.coordinate(withNormalizedOffset: point).tap()
+        tapPickerPhoto(at: 0, in: app)
+    }
+
+    private func tapPickerPhoto(at index: Int, in app: XCUIApplication) {
+        let picker = app.otherElements
+            .containing(.any, identifier: "PXGSingleViewContainerView_AX")
+            .firstMatch
+        let photo = picker.images.matching(
+            NSPredicate(format: "label BEGINSWITH[c] 'Photo'")
+        ).element(boundBy: index)
+        if photo.waitForExistence(timeout: 10) {
+            photo.tap()
+            return
+        }
+
+        // Preserve a coordinate fallback for picker versions that omit these
+        // private accessibility details. The current CI layout uses three columns.
+        let column = index % 3
+        app.windows.firstMatch.coordinate(
+            withNormalizedOffset: CGVector(dx: (Double(column) + 0.5) / 3.0, dy: 0.47)
+        ).tap()
     }
 
     private func attachPickerDiagnostics(from app: XCUIApplication, name: String) {
