@@ -61,6 +61,33 @@ private final class PhotoTransferProgressRelay: @unchecked Sendable {
     }
 }
 
+private func loadPickerData(
+    from item: PhotosPickerItem,
+    identifier: String,
+    relay: PhotoTransferProgressRelay,
+    report: @escaping @Sendable (Double) async -> Void
+) async throws -> Data {
+    let result: Result<Data, Error> = await withCheckedContinuation {
+        (continuation: CheckedContinuation<Result<Data, Error>, Never>) in
+        let progress: Progress = item.loadTransferable(type: Data.self) {
+            (transferResult: Result<Data?, Error>) in
+            relay.stop()
+            switch transferResult {
+            case .success(let data?):
+                continuation.resume(returning: .success(data))
+            case .success(nil):
+                continuation.resume(
+                    returning: .failure(PhotoSelectionError.assetUnavailable(identifier))
+                )
+            case .failure(let error):
+                continuation.resume(returning: .failure(error))
+            }
+        }
+        relay.start(progress: progress, report: report)
+    }
+    return try result.get()
+}
+
 extension PhotosPickerAssetStore {
     public func importSelection(
         _ items: [PhotosPickerItem],
@@ -119,30 +146,18 @@ extension PhotosPickerAssetStore {
     ) async throws -> Data {
         let relay = PhotoTransferProgressRelay()
         return try await withTaskCancellationHandler {
-            let data = try await withCheckedThrowingContinuation {
-                (continuation: CheckedContinuation<Data, Error>) in
-                let progress = item.loadTransferable(type: Data.self) { result in
-                    relay.stop()
-                    switch result {
-                    case .success(let data?):
-                        continuation.resume(returning: data)
-                    case .success(nil):
-                        continuation.resume(
-                            throwing: PhotoSelectionError.assetUnavailable(identifier)
-                        )
-                    case .failure(let error):
-                        continuation.resume(throwing: error)
-                    }
-                }
-                relay.start(progress: progress) { fraction in
-                    await onProgress(
-                        .init(
-                            completedCount: completedCount,
-                            totalCount: totalCount,
-                            currentItemFractionCompleted: fraction
-                        )
+            let data = try await loadPickerData(
+                from: item,
+                identifier: identifier,
+                relay: relay
+            ) { fraction in
+                await onProgress(
+                    .init(
+                        completedCount: completedCount,
+                        totalCount: totalCount,
+                        currentItemFractionCompleted: fraction
                     )
-                }
+                )
             }
             try Task.checkCancellation()
             return data
