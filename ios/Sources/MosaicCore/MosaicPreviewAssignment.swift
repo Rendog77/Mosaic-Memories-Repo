@@ -112,6 +112,41 @@ public struct MosaicPreviewAssignment: Codable, Equatable, Sendable {
 public struct MosaicPreviewAssigner: Sendable {
     public init() {}
 
+    public func validate(
+        targets: [MosaicTargetDescriptor],
+        sources: [MosaicSourceDescriptor],
+        repeatWindow: Int
+    ) throws {
+        guard repeatWindow >= 0 else {
+            throw MosaicAssignmentError.negativeRepeatWindow
+        }
+        guard !sources.isEmpty else {
+            throw MosaicAssignmentError.noSources
+        }
+
+        let componentCount = sources[0].descriptor.components.count
+        for descriptor in sources.map(\.descriptor) + targets.map(\.descriptor) {
+            guard descriptor.components.count == componentCount else {
+                throw MosaicAssignmentError.inconsistentComponentCount(
+                    expected: componentCount,
+                    actual: descriptor.components.count
+                )
+            }
+        }
+
+        let sourceReferences = sources.map(\.reference)
+        guard Set(sourceReferences).count == sourceReferences.count else {
+            throw MosaicAssignmentError.duplicateSources
+        }
+        let targetCoordinates = targets.map(\.coordinate)
+        guard Set(targetCoordinates).count == targetCoordinates.count else {
+            throw MosaicAssignmentError.duplicateTargets
+        }
+        guard targetCoordinates.allSatisfy({ $0.column >= 0 && $0.row >= 0 }) else {
+            throw MosaicAssignmentError.invalidCoordinate
+        }
+    }
+
     public func assign(
         targets: [MosaicTargetDescriptor],
         sources: [MosaicSourceDescriptor],
@@ -190,34 +225,7 @@ public struct MosaicPreviewAssigner: Sendable {
         sources: [MosaicSourceDescriptor],
         repeatWindow: Int
     ) throws -> (targets: [MosaicTargetDescriptor], sources: [MosaicSourceDescriptor]) {
-        guard repeatWindow >= 0 else {
-            throw MosaicAssignmentError.negativeRepeatWindow
-        }
-        guard !sources.isEmpty else {
-            throw MosaicAssignmentError.noSources
-        }
-
-        let componentCount = sources[0].descriptor.components.count
-        for descriptor in sources.map(\.descriptor) + targets.map(\.descriptor) {
-            guard descriptor.components.count == componentCount else {
-                throw MosaicAssignmentError.inconsistentComponentCount(
-                    expected: componentCount,
-                    actual: descriptor.components.count
-                )
-            }
-        }
-
-        let sourceReferences = sources.map(\.reference)
-        guard Set(sourceReferences).count == sourceReferences.count else {
-            throw MosaicAssignmentError.duplicateSources
-        }
-        let targetCoordinates = targets.map(\.coordinate)
-        guard Set(targetCoordinates).count == targetCoordinates.count else {
-            throw MosaicAssignmentError.duplicateTargets
-        }
-        guard targetCoordinates.allSatisfy({ $0.column >= 0 && $0.row >= 0 }) else {
-            throw MosaicAssignmentError.invalidCoordinate
-        }
+        try validate(targets: targets, sources: sources, repeatWindow: repeatWindow)
 
         let orderedSources = sources.sorted { sourceKey($0.reference) < sourceKey($1.reference) }
         let orderedTargets = targets.sorted {
