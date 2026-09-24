@@ -3,6 +3,30 @@ import XCTest
 
 @MainActor
 final class PhotosPickerPresentationUITests: XCTestCase {
+    func testReadySourceSetCanBeConfirmedWithoutLibraryPermission() {
+        let app = XCUIApplication()
+        app.launch()
+
+        let seededProject = app.staticTexts["CI Source Review"]
+        XCTAssertTrue(seededProject.waitForExistence(timeout: 10))
+        seededProject.tap()
+
+        let reviewTitle = app.staticTexts["Review your photos"]
+        XCTAssertTrue(reviewTitle.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["100 photos selected — ready to create"].exists)
+
+        let confirmPhotos = app.buttons["Confirm photos"]
+        XCTAssertTrue(confirmPhotos.exists)
+        XCTAssertTrue(confirmPhotos.isEnabled)
+        confirmPhotos.tap()
+
+        let previewTitle = app.staticTexts["Your framed photo"]
+        if !previewTitle.waitForExistence(timeout: 20) {
+            attachPickerDiagnostics(from: app, name: "After confirming 100 source photos")
+            XCTFail("A ready source set did not advance to preview")
+        }
+    }
+
     func testHeroPickerOpensAndDismissesWithoutChangingSelection() {
         let app = XCUIApplication()
         app.launch()
