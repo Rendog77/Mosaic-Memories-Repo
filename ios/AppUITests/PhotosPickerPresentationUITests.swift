@@ -17,7 +17,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
 
         let cancelPicker = app.buttons["Cancel"].firstMatch
         XCTAssertTrue(waitForPickerLayout(cancelPicker))
-        tapPickerCancel(in: app)
+        tapPickerCancel(cancelPicker, in: app)
 
         let dismissed = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == false"),
@@ -133,8 +133,16 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         XCTAssertTrue(twoSelected.waitForExistence(timeout: 10))
     }
 
-    private func tapPickerCancel(in app: XCUIApplication) {
-        // The out-of-process picker intermittently reports a zero frame for Cancel.
+    private func tapPickerCancel(_ cancelButton: XCUIElement, in app: XCUIApplication) {
+        let frame = cancelButton.frame
+        if cancelButton.exists, frame.width > 0, frame.height > 0 {
+            cancelButton.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+            ).tap()
+            return
+        }
+
+        // Preserve a fallback for picker versions that omit a usable frame.
         app.windows.firstMatch.coordinate(
             withNormalizedOffset: CGVector(dx: 0.10, dy: 0.115)
         ).tap()
