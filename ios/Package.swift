@@ -39,7 +39,7 @@ let package = Package(
         ),
         .testTarget(
             name: "MosaicApplePhotosTests",
-            dependencies: ["MosaicApplePhotos", "MosaicCore", "MosaicFeatures"]
+            dependencies: ["MosaicApplePhotos", "MosaicCore", "MosaicFeatures", "MosaicPersistence"]
         ),
     ]
 )

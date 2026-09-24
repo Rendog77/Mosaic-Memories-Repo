@@ -43,7 +43,7 @@ The sequencing rule is: **prove that people value the artwork, then prove that s
 
 ## Phase 4 — Preview engine (weeks 6–8)
 
-**Status:** In progress. Versioned descriptor and assignment models plus deterministic nearest-candidate selection, stable tie-breaking, row-major ordering, repeat-window avoidance, per-tile progress, scheduler yielding, cooperative cancellation, atomic recipe-keyed assignment caching, and a cache-first generation coordinator are implemented. Corrupt, incompatible, stale, incomplete, and cancelled results recover without exposing or persisting partial previews.
+**Status:** In progress. Versioned CIELAB descriptors are extracted from orientation-corrected, center-cropped source thumbnails and the cropped hero grid, then passed through deterministic nearest-candidate selection with stable tie-breaking, row-major ordering, repeat-window avoidance, staged progress, scheduler yielding, and cooperative cancellation. Atomic recipe-keyed assignment caching and a cache-first coordinator recover from corrupt, incompatible, stale, incomplete, and cancelled results without exposing or persisting partial previews.
 
 - Implement versioned descriptors, candidate scoring, repeat penalties, deterministic assignment, progress, cancellation, and preview caching.
 - Validate ten golden projects for likeness, tile authenticity, diversity, and crop safety.
