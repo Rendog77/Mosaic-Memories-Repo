@@ -40,8 +40,12 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         chooseHero.tap()
 
         let cancelPicker = app.buttons["Cancel"].firstMatch
-        XCTAssertTrue(waitForPickerLayout(cancelPicker))
-        tapPickerCancel(cancelPicker, in: app)
+        guard let cancelFrame = waitForPickerFrame(cancelPicker) else {
+            attachPickerDiagnostics(from: app, name: "Picker without a usable Cancel frame")
+            XCTFail("The photo picker did not expose a usable Cancel button")
+            return
+        }
+        tapPickerCancel(at: cancelFrame, in: app)
 
         let dismissed = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == false"),
@@ -157,34 +161,54 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         XCTAssertTrue(twoSelected.waitForExistence(timeout: 10))
     }
 
-    private func tapPickerCancel(_ cancelButton: XCUIElement, in app: XCUIApplication) {
-        let frame = cancelButton.frame
-        if cancelButton.exists, frame.width > 0, frame.height > 0 {
-            cancelButton.coordinate(
-                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-            ).tap()
-            return
+    private func tapPickerCancel(at buttonFrame: CGRect, in app: XCUIApplication) {
+        let window = app.windows.firstMatch
+        let windowFrame = window.frame
+        if hasUsableFrame(buttonFrame), hasUsableFrame(windowFrame) {
+            let offset = CGVector(
+                dx: (buttonFrame.midX - windowFrame.minX) / windowFrame.width,
+                dy: (buttonFrame.midY - windowFrame.minY) / windowFrame.height
+            )
+            if offset.dx.isFinite, offset.dy.isFinite,
+               offset.dx >= 0, offset.dx <= 1,
+               offset.dy >= 0, offset.dy <= 1 {
+                window.coordinate(withNormalizedOffset: offset).tap()
+                return
+            }
         }
 
         // Preserve a fallback for picker versions that omit a usable frame.
-        app.windows.firstMatch.coordinate(
+        window.coordinate(
             withNormalizedOffset: CGVector(dx: 0.10, dy: 0.115)
         ).tap()
     }
 
     private func waitForPickerLayout(_ cancelButton: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        waitForPickerFrame(cancelButton, timeout: timeout) != nil
+    }
+
+    private func waitForPickerFrame(
+        _ cancelButton: XCUIElement,
+        timeout: TimeInterval = 10
+    ) -> CGRect? {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if cancelButton.exists {
                 let frame = cancelButton.frame
-                if frame.width > 0 && frame.height > 0 {
+                if hasUsableFrame(frame) {
                     Thread.sleep(forTimeInterval: 0.5)
-                    return true
+                    return frame
                 }
             }
             Thread.sleep(forTimeInterval: 0.25)
         }
-        return false
+        return nil
+    }
+
+    private func hasUsableFrame(_ frame: CGRect) -> Bool {
+        frame.minX.isFinite && frame.minY.isFinite &&
+            frame.width.isFinite && frame.height.isFinite &&
+            frame.width > 0 && frame.height > 0
     }
 
     private func tapFirstPickerPhoto(in app: XCUIApplication) {
