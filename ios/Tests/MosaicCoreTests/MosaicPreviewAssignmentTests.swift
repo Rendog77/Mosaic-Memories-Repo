@@ -1,5 +1,23 @@
+import Foundation
 import XCTest
 @testable import MosaicCore
+
+private final class ProgressCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [MosaicProgress] = []
+
+    func append(_ progress: MosaicProgress) {
+        lock.lock()
+        values.append(progress)
+        lock.unlock()
+    }
+
+    func snapshot() -> [MosaicProgress] {
+        lock.lock()
+        defer { lock.unlock() }
+        return values
+    }
+}
 
 final class MosaicPreviewAssignmentTests: XCTestCase {
     func testDescriptorAndAssignmentRoundTripThroughJSON() throws {
@@ -73,6 +91,53 @@ final class MosaicPreviewAssignmentTests: XCTestCase {
 
         XCTAssertEqual(forward, reversed)
         XCTAssertEqual(forward.tiles.first?.source.id, "a")
+    }
+
+    func testAsyncAssignmentReportsEveryCompletedTile() async throws {
+        let collector = ProgressCollector()
+        let source = try source("source", components: [0])
+        let targets = try (0..<3).map {
+            try target(column: $0, row: 0, components: [0])
+        }
+
+        let assignment = try await MosaicPreviewAssigner().assign(
+            targets: targets,
+            sources: [source],
+            repeatWindow: 0
+        ) { collector.append($0) }
+
+        XCTAssertEqual(assignment.tiles.count, 3)
+        XCTAssertEqual(collector.snapshot(), [
+            .init(completed: 0, total: 3),
+            .init(completed: 1, total: 3),
+            .init(completed: 2, total: 3),
+            .init(completed: 3, total: 3),
+        ])
+    }
+
+    func testAsyncAssignmentCooperativelyCancels() async throws {
+        let source = try source("source", components: [0])
+        let targets = try (0..<10_000).map {
+            try target(column: $0, row: 0, components: [0])
+        }
+        let task = Task {
+            try await MosaicPreviewAssigner().assign(
+                targets: targets,
+                sources: [source],
+                repeatWindow: 0
+            ) { _ in }
+        }
+
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected assignment cancellation")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testInvalidInputsAreRejected() throws {

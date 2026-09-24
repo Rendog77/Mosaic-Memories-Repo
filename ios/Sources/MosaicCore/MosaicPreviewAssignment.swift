@@ -118,6 +118,78 @@ public struct MosaicPreviewAssigner: Sendable {
         repeatWindow: Int,
         engineVersion: Int = MosaicRecipe.currentEngineVersion
     ) throws -> MosaicPreviewAssignment {
+        let prepared = try prepare(
+            targets: targets,
+            sources: sources,
+            repeatWindow: repeatWindow
+        )
+        var recentSources: [AssetReference] = []
+        var tiles: [MosaicAssignedTile] = []
+        tiles.reserveCapacity(prepared.targets.count)
+
+        for target in prepared.targets {
+            let selected = selectSource(
+                for: target,
+                from: prepared.sources,
+                recentSources: recentSources,
+                repeatWindow: repeatWindow
+            )
+            tiles.append(.init(coordinate: target.coordinate, source: selected.reference))
+            recentSources.append(selected.reference)
+        }
+
+        return MosaicPreviewAssignment(
+            engineVersion: engineVersion,
+            tiles: tiles
+        )
+    }
+
+    public func assign(
+        targets: [MosaicTargetDescriptor],
+        sources: [MosaicSourceDescriptor],
+        repeatWindow: Int,
+        engineVersion: Int = MosaicRecipe.currentEngineVersion,
+        progress: @escaping @Sendable (MosaicProgress) -> Void
+    ) async throws -> MosaicPreviewAssignment {
+        try Task.checkCancellation()
+        let prepared = try prepare(
+            targets: targets,
+            sources: sources,
+            repeatWindow: repeatWindow
+        )
+        progress(.init(completed: 0, total: prepared.targets.count))
+        var recentSources: [AssetReference] = []
+        var tiles: [MosaicAssignedTile] = []
+        tiles.reserveCapacity(prepared.targets.count)
+
+        for (index, target) in prepared.targets.enumerated() {
+            if index.isMultiple(of: 32) {
+                await Task.yield()
+            }
+            try Task.checkCancellation()
+            let selected = selectSource(
+                for: target,
+                from: prepared.sources,
+                recentSources: recentSources,
+                repeatWindow: repeatWindow
+            )
+            tiles.append(.init(coordinate: target.coordinate, source: selected.reference))
+            recentSources.append(selected.reference)
+            progress(.init(completed: tiles.count, total: prepared.targets.count))
+        }
+        try Task.checkCancellation()
+
+        return MosaicPreviewAssignment(
+            engineVersion: engineVersion,
+            tiles: tiles
+        )
+    }
+
+    private func prepare(
+        targets: [MosaicTargetDescriptor],
+        sources: [MosaicSourceDescriptor],
+        repeatWindow: Int
+    ) throws -> (targets: [MosaicTargetDescriptor], sources: [MosaicSourceDescriptor]) {
         guard repeatWindow >= 0 else {
             throw MosaicAssignmentError.negativeRepeatWindow
         }
@@ -151,30 +223,26 @@ public struct MosaicPreviewAssigner: Sendable {
         let orderedTargets = targets.sorted {
             ($0.coordinate.row, $0.coordinate.column) < ($1.coordinate.row, $1.coordinate.column)
         }
-        var recentSources: [AssetReference] = []
-        var tiles: [MosaicAssignedTile] = []
-        tiles.reserveCapacity(orderedTargets.count)
+        return (orderedTargets, orderedSources)
+    }
 
-        for target in orderedTargets {
-            let recent = Set(recentSources.suffix(repeatWindow))
-            let unrepeated = orderedSources.filter { !recent.contains($0.reference) }
-            let candidates = unrepeated.isEmpty ? orderedSources : unrepeated
-            let selected = candidates.min { lhs, rhs in
-                let lhsScore = squaredDistance(target.descriptor, lhs.descriptor)
-                let rhsScore = squaredDistance(target.descriptor, rhs.descriptor)
-                if lhsScore == rhsScore {
-                    return sourceKey(lhs.reference) < sourceKey(rhs.reference)
-                }
-                return lhsScore < rhsScore
-            }!
-            tiles.append(.init(coordinate: target.coordinate, source: selected.reference))
-            recentSources.append(selected.reference)
-        }
-
-        return MosaicPreviewAssignment(
-            engineVersion: engineVersion,
-            tiles: tiles
-        )
+    private func selectSource(
+        for target: MosaicTargetDescriptor,
+        from orderedSources: [MosaicSourceDescriptor],
+        recentSources: [AssetReference],
+        repeatWindow: Int
+    ) -> MosaicSourceDescriptor {
+        let recent = Set(recentSources.suffix(repeatWindow))
+        let unrepeated = orderedSources.filter { !recent.contains($0.reference) }
+        let candidates = unrepeated.isEmpty ? orderedSources : unrepeated
+        return candidates.min { lhs, rhs in
+            let lhsScore = squaredDistance(target.descriptor, lhs.descriptor)
+            let rhsScore = squaredDistance(target.descriptor, rhs.descriptor)
+            if lhsScore == rhsScore {
+                return sourceKey(lhs.reference) < sourceKey(rhs.reference)
+            }
+            return lhsScore < rhsScore
+        }!
     }
 
     private func squaredDistance(_ lhs: MosaicDescriptor, _ rhs: MosaicDescriptor) -> Double {

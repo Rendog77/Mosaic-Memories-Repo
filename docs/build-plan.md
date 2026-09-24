@@ -43,7 +43,7 @@ The sequencing rule is: **prove that people value the artwork, then prove that s
 
 ## Phase 4 — Preview engine (weeks 6–8)
 
-**Status:** In progress. Versioned descriptor and assignment models plus deterministic nearest-candidate selection, stable tie-breaking, row-major ordering, and repeat-window avoidance are implemented as the platform-neutral engine foundation.
+**Status:** In progress. Versioned descriptor and assignment models plus deterministic nearest-candidate selection, stable tie-breaking, row-major ordering, repeat-window avoidance, per-tile progress, scheduler yielding, and cooperative cancellation are implemented as the platform-neutral engine foundation.
 
 - Implement versioned descriptors, candidate scoring, repeat penalties, deterministic assignment, progress, cancellation, and preview caching.
 - Validate ten golden projects for likeness, tile authenticity, diversity, and crop safety.
