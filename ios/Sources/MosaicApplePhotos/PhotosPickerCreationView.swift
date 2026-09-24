@@ -91,7 +91,7 @@ private func loadPickerData(
 extension PhotosPickerAssetStore {
     public func importSelection(
         _ items: [PhotosPickerItem],
-        onProgress: @Sendable (PhotoImportProgress) async -> Void = { _ in }
+        onProgress: @escaping @Sendable (PhotoImportProgress) async -> Void = { _ in }
     ) async throws -> [AssetReference] {
         guard !items.isEmpty else { return [] }
         var references: [AssetReference] = []
