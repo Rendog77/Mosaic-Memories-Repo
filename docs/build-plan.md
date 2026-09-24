@@ -34,14 +34,16 @@ The sequencing rule is: **prove that people value the artwork, then prove that s
 
 ## Phase 3 — Hero and manual sources (weeks 4–6)
 
-**Status:** In progress. Native selected-photo presentation, ImageIO format/orientation/dimension validation, atomic private caching, system-reported per-item transfer progress with cooperative cancellation, stable transfer-error classification, transient-failure retry, thumbnail review, source sufficiency, lifecycle cleanup, persisted source-confirmation state, persisted hero-crop presets applied to hero thumbnails and the preview-step framing display, and cached-asset availability checks before source confirmation are implemented. Interrupted partial selections resume in review instead of bypassing the 100-photo confirmation rule. iPhone Simulator UI tests cover hero-picker presentation, dismissal, seeded-photo selection through to framing, source selection through to review, and adding/removing reviewed photos. The injectable dimension ceiling is a safety bound, not a final device commitment. Applying the crop to the future mosaic engine output, physical-device validation of real iCloud progress, and validation of future non-picker asset stores remain pending.
+**Status:** Complete for selected-photo mode on the provisional iOS 17 simulator floor. See `gates/g3-manual-source-confirmation.md` for evidence and remaining physical-device risk. Native selected-photo presentation, validation, private caching, transfer progress and cancellation, retry, thumbnail review, source sufficiency, lifecycle cleanup, persisted confirmation and crop state, missing-asset checks, interruption recovery, and the complete 100-photo confirmation journey are implemented.
 
 - Implement hero selection/crop and manual multi-selection without broad library permission.
 - Review, add/remove, and validate source sufficiency; handle orientation, formats, iCloud progress, cancellation, and missing assets.
 
-**Gate G3:** a tester can reliably reach a confirmed source set without an account or full-library permission.
+**Gate G3: Passed 2026-09-24.** A tester can reliably reach a confirmed 100-photo source set without an account or full-library permission.
 
 ## Phase 4 — Preview engine (weeks 6–8)
+
+**Status:** In progress. Versioned descriptor and assignment models plus deterministic nearest-candidate selection, stable tie-breaking, row-major ordering, and repeat-window avoidance are implemented as the platform-neutral engine foundation.
 
 - Implement versioned descriptors, candidate scoring, repeat penalties, deterministic assignment, progress, cancellation, and preview caching.
 - Validate ten golden projects for likeness, tile authenticity, diversity, and crop safety.
