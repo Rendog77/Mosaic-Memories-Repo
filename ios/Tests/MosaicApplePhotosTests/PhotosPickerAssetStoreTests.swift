@@ -62,6 +62,15 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         XCTAssertEqual(PhotoImportProgress(completedCount: 0, totalCount: 4).fractionCompleted, 0)
         XCTAssertEqual(PhotoImportProgress(completedCount: 2, totalCount: 4).fractionCompleted, 0.5)
         XCTAssertEqual(PhotoImportProgress(completedCount: 4, totalCount: 4).fractionCompleted, 1)
+
+        let transferring = PhotoImportProgress(
+            completedCount: 1,
+            totalCount: 4,
+            currentItemFractionCompleted: 0.5
+        )
+        XCTAssertEqual(transferring.fractionCompleted, 0.375)
+        XCTAssertEqual(transferring.currentItemNumber, 2)
+        XCTAssertEqual(transferring.currentItemPercentage, 50)
     }
 
     func testRegisteredSelectionReturnsBoundedJPEGThumbnail() async throws {

@@ -11,6 +11,56 @@ private enum PendingImportRetry {
     case sources([PhotosPickerItem])
 }
 
+private final class PhotoTransferProgressRelay: @unchecked Sendable {
+    private let lock = NSLock()
+    private var monitor: Task<Void, Never>?
+    private var progress: Progress?
+    private var isStopped = false
+
+    func start(
+        progress: Progress,
+        report: @escaping @Sendable (Double) async -> Void
+    ) {
+        let monitor = Task {
+            var lastPercentage = -1
+            while !Task.isCancelled {
+                let rawFraction = progress.fractionCompleted
+                let fraction = rawFraction.isFinite ? min(1, max(0, rawFraction)) : 0
+                let percentage = Int((fraction * 100).rounded(.down))
+                if percentage != lastPercentage {
+                    lastPercentage = percentage
+                    await report(fraction)
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
+
+        lock.lock()
+        self.progress = progress
+        if isStopped {
+            lock.unlock()
+            monitor.cancel()
+            progress.cancel()
+        } else {
+            self.monitor = monitor
+            lock.unlock()
+        }
+    }
+
+    func stop(cancelTransfer: Bool = false) {
+        lock.lock()
+        isStopped = true
+        let monitor = self.monitor
+        let progress = self.progress
+        self.monitor = nil
+        lock.unlock()
+        monitor?.cancel()
+        if cancelTransfer {
+            progress?.cancel()
+        }
+    }
+}
+
 extension PhotosPickerAssetStore {
     public func importSelection(
         _ items: [PhotosPickerItem],
@@ -25,10 +75,13 @@ extension PhotosPickerAssetStore {
                 let identifier = item.itemIdentifier ?? "selected-photo"
                 let data: Data
                 do {
-                    guard let transferred = try await item.loadTransferable(type: Data.self) else {
-                        throw PhotoSelectionError.assetUnavailable(identifier)
-                    }
-                    data = transferred
+                    data = try await loadData(
+                        from: item,
+                        identifier: identifier,
+                        completedCount: index,
+                        totalCount: items.count,
+                        onProgress: onProgress
+                    )
                 } catch let error as PhotoSelectionError {
                     throw error
                 } catch {
@@ -54,6 +107,47 @@ extension PhotosPickerAssetStore {
         } catch {
             discardCachedAssets(references)
             throw PhotoTransferErrorClassifier().classify(error, identifier: "selected-photo")
+        }
+    }
+
+    private func loadData(
+        from item: PhotosPickerItem,
+        identifier: String,
+        completedCount: Int,
+        totalCount: Int,
+        onProgress: @escaping @Sendable (PhotoImportProgress) async -> Void
+    ) async throws -> Data {
+        let relay = PhotoTransferProgressRelay()
+        return try await withTaskCancellationHandler {
+            let data = try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<Data, Error>) in
+                let progress = item.loadTransferable(type: Data.self) { result in
+                    relay.stop()
+                    switch result {
+                    case .success(let data?):
+                        continuation.resume(returning: data)
+                    case .success(nil):
+                        continuation.resume(
+                            throwing: PhotoSelectionError.assetUnavailable(identifier)
+                        )
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
+                    }
+                }
+                relay.start(progress: progress) { fraction in
+                    await onProgress(
+                        .init(
+                            completedCount: completedCount,
+                            totalCount: totalCount,
+                            currentItemFractionCompleted: fraction
+                        )
+                    )
+                }
+            }
+            try Task.checkCancellation()
+            return data
+        } onCancel: {
+            relay.stop(cancelTransfer: true)
         }
     }
 }
@@ -163,7 +257,7 @@ public struct PhotosPickerCreationView: View {
                 VStack(spacing: 8) {
                     ProgressView(value: importProgress.fractionCompleted)
                         .frame(maxWidth: 280)
-                    Text("Importing \(importProgress.completedCount) of \(importProgress.totalCount) photos")
+                    Text(importProgressDescription(importProgress))
                         .font(.footnote)
                     Button("Cancel import", role: .cancel, action: cancelImport)
                 }
@@ -172,7 +266,7 @@ public struct PhotosPickerCreationView: View {
                 .padding()
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Importing photos")
-                .accessibilityValue("\(importProgress.completedCount) of \(importProgress.totalCount)")
+                .accessibilityValue(importProgressDescription(importProgress))
             } else if let importMessage {
                 VStack(spacing: 8) {
                     Text(importMessage)
@@ -205,6 +299,14 @@ public struct PhotosPickerCreationView: View {
             await assetStore.discardCachedAssets(references)
             throw PhotoSelectionError.selectionCancelled
         }
+    }
+
+    private func importProgressDescription(_ progress: PhotoImportProgress) -> String {
+        if let itemNumber = progress.currentItemNumber,
+           let percentage = progress.currentItemPercentage {
+            return "Loading photo \(itemNumber) of \(progress.totalCount) — \(percentage)%"
+        }
+        return "Imported \(progress.completedCount) of \(progress.totalCount) photos"
     }
 
     private func cancelImport() {
