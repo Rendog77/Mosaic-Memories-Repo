@@ -106,8 +106,8 @@ final class ImageDescriptorExtractorTests: XCTestCase {
             .init(column: 0, row: 0),
             .init(column: 1, row: 0),
         ])
-        XCTAssertGreaterThan(targets[0].descriptor.components[1], 0)
-        XCTAssertLessThan(targets[1].descriptor.components[1], 0)
+        XCTAssertGreaterThan(targets[0].descriptor.components[2], 0)
+        XCTAssertLessThan(targets[1].descriptor.components[2], 0)
     }
 
     func testBuilderLoadsCropAndReportsDescriptorProgress() async throws {
