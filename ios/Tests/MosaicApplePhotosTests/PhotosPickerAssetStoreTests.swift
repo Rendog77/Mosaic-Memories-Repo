@@ -256,11 +256,20 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
         let applicationSupport = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: applicationSupport) }
         let environment = MosaicAppEnvironment(applicationSupportDirectory: applicationSupport)
-        let project = MosaicProject(title: "Persistent mosaic")
         let png = try XCTUnwrap(Data(base64Encoded: Self.onePixelPNG))
+        let source = try await environment.assetStore.registerImportedData(png)
+        let project = MosaicProject(
+            title: "Persistent mosaic",
+            sources: [source],
+            sourcesConfirmed: true
+        )
+        let assignment = MosaicPreviewAssignment(
+            engineVersion: project.recipe.engineVersion,
+            tiles: [.init(coordinate: .init(column: 0, row: 0), source: source)]
+        )
 
         try await environment.projectStore.save(project)
-        _ = try await environment.assetStore.registerImportedData(png)
+        try await environment.previewCache.save(assignment, for: project)
 
         let root = applicationSupport.appendingPathComponent("MosaicMemories")
         let projectFiles = try FileManager.default.contentsOfDirectory(
@@ -271,8 +280,14 @@ final class PhotosPickerAssetStoreTests: XCTestCase {
             at: root.appendingPathComponent("SelectedPhotos"),
             includingPropertiesForKeys: nil
         )
+        let previewFiles = try FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("PreviewAssignments"),
+            includingPropertiesForKeys: nil
+        )
         XCTAssertEqual(projectFiles.map(\.pathExtension), ["json"])
         XCTAssertEqual(assetFiles.map(\.pathExtension), ["asset"])
+        XCTAssertEqual(previewFiles.count, 1)
+        XCTAssertTrue(previewFiles[0].lastPathComponent.hasSuffix(".preview.json"))
     }
 
     func testDiscardRemovesOnlyCachedPickerAssets() async throws {
