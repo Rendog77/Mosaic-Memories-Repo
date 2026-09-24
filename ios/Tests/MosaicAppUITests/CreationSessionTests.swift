@@ -75,6 +75,23 @@ final class CreationSessionTests: XCTestCase {
         XCTAssertEqual(restored.workflow.step, .preview)
     }
 
+    func testPartialSourceReviewResumesWithoutBypassingConfirmation() async throws {
+        let store = InMemoryProjectStore()
+        let session = CreationSession(store: store)
+        await session.selectHero(.init(id: "hero", origin: .testFixture))
+        await session.reviewSources([
+            .init(id: "source-1", origin: .testFixture),
+            .init(id: "source-2", origin: .testFixture),
+        ])
+
+        let restored = CreationSession(store: store)
+        await restored.restoreMostRecentProject()
+
+        XCTAssertEqual(restored.workflow.step, .sourceReview)
+        XCTAssertFalse(restored.workflow.project.sourcesConfirmed)
+        XCTAssertEqual(restored.sourceReadiness(), .needsMore(required: 100, actual: 2))
+    }
+
     func testInsufficientSourcesProduceHelpfulMessage() async {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let session = CreationSession(store: JSONProjectStore(directory: directory))
@@ -280,6 +297,25 @@ final class CreationSessionTests: XCTestCase {
 
         XCTAssertFalse(removed)
         XCTAssertEqual(session.workflow.project.sources, [source])
+        XCTAssertEqual(session.message, "Changes could not be saved. Please try again.")
+    }
+
+    func testSourceConfirmationRollsBackWhenPersistenceFails() async {
+        let source = AssetReference(id: "keep-in-review", origin: .testFixture)
+        let project = MosaicProject(
+            hero: .init(id: "hero", origin: .testFixture),
+            sources: [source]
+        )
+        let session = CreationSession(
+            store: SaveFailingProjectStore(),
+            project: project,
+            step: .sourceReview
+        )
+
+        await session.confirmSources(minimum: 1)
+
+        XCTAssertEqual(session.workflow.step, .sourceReview)
+        XCTAssertFalse(session.workflow.project.sourcesConfirmed)
         XCTAssertEqual(session.message, "Changes could not be saved. Please try again.")
     }
 

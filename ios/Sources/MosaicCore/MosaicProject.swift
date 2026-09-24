@@ -1,7 +1,7 @@
 import Foundation
 
 public struct MosaicProject: Codable, Equatable, Identifiable, Sendable {
-    public static let currentSchemaVersion = 2
+    public static let currentSchemaVersion = 3
 
     public let id: UUID
     public var schemaVersion: Int
@@ -11,6 +11,7 @@ public struct MosaicProject: Codable, Equatable, Identifiable, Sendable {
     public var hero: AssetReference?
     public var heroCrop: HeroCrop?
     public var sources: [AssetReference]
+    public var sourcesConfirmed: Bool
     public var recipe: MosaicRecipe
 
     public init(
@@ -22,6 +23,7 @@ public struct MosaicProject: Codable, Equatable, Identifiable, Sendable {
         hero: AssetReference? = nil,
         heroCrop: HeroCrop? = nil,
         sources: [AssetReference] = [],
+        sourcesConfirmed: Bool = false,
         recipe: MosaicRecipe = .init()
     ) {
         self.id = id
@@ -32,6 +34,7 @@ public struct MosaicProject: Codable, Equatable, Identifiable, Sendable {
         self.hero = hero
         self.heroCrop = heroCrop
         self.sources = sources
+        self.sourcesConfirmed = sourcesConfirmed
         self.recipe = recipe
     }
 }

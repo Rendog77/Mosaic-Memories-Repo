@@ -69,7 +69,8 @@ final class ProjectStoreTests: XCTestCase {
         let migrated = try await store.load(id: original.id)
 
         XCTAssertEqual(migrated, original)
-        XCTAssertEqual(migrated?.schemaVersion, 2)
+        XCTAssertEqual(migrated?.schemaVersion, 3)
+        XCTAssertEqual(migrated?.sourcesConfirmed, false)
         XCTAssertEqual(migrated?.recipe.engineVersion, 1)
     }
 
@@ -82,6 +83,7 @@ final class ProjectStoreTests: XCTestCase {
         var document = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         document["schemaVersion"] = 1
         document["heroCrop"] = nil
+        document["sourcesConfirmed"] = nil
         let file = directory.appendingPathComponent(original.id.uuidString).appendingPathExtension("json")
         try JSONSerialization.data(withJSONObject: document).write(to: file)
 
@@ -89,6 +91,27 @@ final class ProjectStoreTests: XCTestCase {
 
         XCTAssertEqual(migrated, original)
         XCTAssertNil(migrated?.heroCrop)
+        XCTAssertEqual(migrated?.sourcesConfirmed, false)
+    }
+
+    func testVersionTwoProjectReturnsToSourceReviewUntilReconfirmed() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let source = AssetReference(id: "legacy-source", origin: .testFixture)
+        let original = MosaicProject(sources: [source], sourcesConfirmed: true)
+        let encoded = try JSONEncoder().encode(original)
+        var document = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        document["schemaVersion"] = 2
+        document["sourcesConfirmed"] = nil
+        let file = directory.appendingPathComponent(original.id.uuidString).appendingPathExtension("json")
+        try JSONSerialization.data(withJSONObject: document).write(to: file)
+
+        let migrated = try await JSONProjectStore(directory: directory).load(id: original.id)
+
+        XCTAssertEqual(migrated?.schemaVersion, 3)
+        XCTAssertEqual(migrated?.sources, [source])
+        XCTAssertEqual(migrated?.sourcesConfirmed, false)
     }
 
     func testMigratorRejectsFutureSchema() throws {

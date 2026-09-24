@@ -27,6 +27,9 @@ public struct CreationWorkflow: Equatable, Sendable {
     public mutating func selectHero(_ hero: AssetReference) {
         project.hero = hero
         project.heroCrop = nil
+        if !project.sources.isEmpty {
+            project.sourcesConfirmed = false
+        }
         touch()
         step = project.sources.isEmpty ? .memories : .sourceReview
     }
@@ -43,6 +46,7 @@ public struct CreationWorkflow: Equatable, Sendable {
 
     public mutating func reviewSources(_ sources: [AssetReference]) {
         project.sources = sources
+        project.sourcesConfirmed = false
         touch()
         step = .sourceReview
     }
@@ -52,6 +56,7 @@ public struct CreationWorkflow: Equatable, Sendable {
         let originalCount = project.sources.count
         project.sources.removeAll { $0.id == id }
         guard project.sources.count != originalCount else { return false }
+        project.sourcesConfirmed = false
         touch()
         step = .sourceReview
         return true
@@ -69,6 +74,7 @@ public struct CreationWorkflow: Equatable, Sendable {
         guard sources.count >= minimum else {
             throw CreationWorkflowError.insufficientSources(required: minimum, actual: sources.count)
         }
+        project.sourcesConfirmed = true
         touch()
         step = .preview
     }

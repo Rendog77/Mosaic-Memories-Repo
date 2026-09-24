@@ -57,8 +57,10 @@ final class CreationWorkflowTests: XCTestCase {
         let sources = (0..<100).map { AssetReference(id: "source-\($0)", origin: .testFixture) }
         workflow.reviewSources(sources)
         XCTAssertEqual(workflow.step, .sourceReview)
+        XCTAssertFalse(workflow.project.sourcesConfirmed)
         try workflow.confirmReviewedSources()
         XCTAssertEqual(workflow.step, .preview)
+        XCTAssertTrue(workflow.project.sourcesConfirmed)
     }
 
     func testBlankProjectNameFallsBackToUntitled() {
@@ -75,6 +77,7 @@ final class CreationWorkflowTests: XCTestCase {
 
         XCTAssertTrue(workflow.removeSource(id: "source-0"))
         XCTAssertEqual(workflow.step, .sourceReview)
+        XCTAssertFalse(workflow.project.sourcesConfirmed)
         XCTAssertEqual(workflow.sourceReadiness(), .needsMore(required: 100, actual: 99))
         XCTAssertFalse(workflow.removeSource(id: "missing"))
     }

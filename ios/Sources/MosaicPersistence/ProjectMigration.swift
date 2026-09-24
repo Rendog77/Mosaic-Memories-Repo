@@ -26,6 +26,10 @@ public struct DefaultProjectMigrator: ProjectMigrating {
             case 1:
                 document["schemaVersion"] = 2
                 version = 2
+            case 2:
+                document["schemaVersion"] = 3
+                document["sourcesConfirmed"] = false
+                version = 3
             default:
                 throw ProjectStoreError.noMigrationPath(
                     from: version,

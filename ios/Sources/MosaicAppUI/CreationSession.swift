@@ -202,15 +202,18 @@ public final class CreationSession: ObservableObject {
             }
             missingAssetIDs = []
             isHeroMissing = false
+            let previousWorkflow = workflow
             try workflow.confirmReviewedSources(minimum: minimum)
             message = nil
-            await persist(
+            if !(await persist(
                 event: .sourceSetConfirmed,
                 fields: [
                     .workflowStep: "preview",
                     .sourceCountBucket: SourceCountBucket(count: workflow.project.sources.count).rawValue,
                 ]
-            )
+            )) {
+                workflow = previousWorkflow
+            }
         } catch CreationWorkflowError.insufficientSources(let required, let actual) {
             message = "Choose at least \(required) photos. You currently have \(actual)."
         } catch {
@@ -232,7 +235,7 @@ public final class CreationSession: ObservableObject {
     private static func inferredStep(for project: MosaicProject) -> CreationStep {
         if project.hero == nil { return .hero }
         if project.sources.isEmpty { return .memories }
-        return .preview
+        return project.sourcesConfirmed ? .preview : .sourceReview
     }
 
     private static func analyticsName(for step: CreationStep) -> String {
