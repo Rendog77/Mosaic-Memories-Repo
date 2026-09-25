@@ -45,13 +45,11 @@ final class PhotosPickerPresentationUITests: XCTestCase {
             XCTFail("The photo picker did not expose a usable Cancel button")
             return
         }
-        tapPickerCancel(at: cancelFrame, in: app)
-
-        let dismissed = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == false"),
-            object: cancelPicker
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 10), .completed)
+        guard dismissPicker(cancelPicker, initialFrame: cancelFrame, in: app) else {
+            attachPickerDiagnostics(from: app, name: "Picker after Cancel did not dismiss")
+            XCTFail("The photo picker did not dismiss after tapping Cancel")
+            return
+        }
         XCTAssertTrue(chooseHero.waitForExistence(timeout: 10))
         XCTAssertTrue(chooseHero.isHittable)
     }
@@ -161,6 +159,34 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         XCTAssertTrue(twoSelected.waitForExistence(timeout: 10))
     }
 
+    private func dismissPicker(
+        _ cancelButton: XCUIElement,
+        initialFrame: CGRect,
+        in app: XCUIApplication
+    ) -> Bool {
+        let hittable = NSPredicate(format: "exists == true AND hittable == true")
+        let expectation = XCTNSPredicateExpectation(predicate: hittable, object: cancelButton)
+        if XCTWaiter.wait(for: [expectation], timeout: 3) == .completed {
+            cancelButton.tap()
+            if waitForNonexistence(cancelButton, timeout: 4) {
+                return true
+            }
+        }
+
+        // The system picker can temporarily expose Cancel as non-hittable even
+        // with a valid frame. Route a physical tap through the app window then.
+        tapPickerCancel(at: usableFrame(of: cancelButton) ?? initialFrame, in: app)
+        if waitForNonexistence(cancelButton, timeout: 4) {
+            return true
+        }
+
+        // Allow one fresh accessibility attempt after the picker settles.
+        if cancelButton.exists, cancelButton.isHittable {
+            cancelButton.tap()
+        }
+        return waitForNonexistence(cancelButton, timeout: 4)
+    }
+
     private func tapPickerCancel(at buttonFrame: CGRect, in app: XCUIApplication) {
         let window = app.windows.firstMatch
         let windowFrame = window.frame
@@ -181,6 +207,24 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         window.coordinate(
             withNormalizedOffset: CGVector(dx: 0.10, dy: 0.115)
         ).tap()
+    }
+
+    private func usableFrame(of element: XCUIElement) -> CGRect? {
+        guard element.exists else { return nil }
+        let frame = element.frame
+        return hasUsableFrame(frame) ? frame : nil
+    }
+
+    private func waitForNonexistence(
+        _ element: XCUIElement,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !element.exists { return true }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return !element.exists
     }
 
     private func waitForPickerLayout(_ cancelButton: XCUIElement, timeout: TimeInterval = 10) -> Bool {
