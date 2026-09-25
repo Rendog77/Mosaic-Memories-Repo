@@ -39,6 +39,11 @@ done
 project_path="$projects_directory/33333333-3333-3333-3333-333333333333.json"
 printf '%s' "{\"createdAt\":0,\"hero\":{\"id\":\"$hero_id\",\"origin\":\"photoPicker\"},\"heroCrop\":null,\"id\":\"33333333-3333-3333-3333-333333333333\",\"recipe\":{\"columns\":50,\"engineVersion\":1,\"likeness\":0.5,\"repeatWindow\":8,\"replacements\":[]},\"schemaVersion\":3,\"sources\":[${sources_json}],\"sourcesConfirmed\":false,\"title\":\"CI Source Review\",\"updatedAt\":0}" > "$project_path"
 
+editor_source_one="10000000-0000-0000-0000-000000000001"
+editor_source_two="10000000-0000-0000-0000-000000000002"
+editor_project_path="$projects_directory/44444444-4444-4444-4444-444444444444.json"
+printf '%s' "{\"createdAt\":1,\"hero\":{\"id\":\"$hero_id\",\"origin\":\"photoPicker\"},\"heroCrop\":null,\"id\":\"44444444-4444-4444-4444-444444444444\",\"recipe\":{\"columns\":2,\"engineVersion\":1,\"likeness\":0.5,\"repeatWindow\":1,\"replacements\":[]},\"schemaVersion\":3,\"sources\":[{\"id\":\"$editor_source_one\",\"origin\":\"photoPicker\"},{\"id\":\"$editor_source_two\",\"origin\":\"photoPicker\"}],\"sourcesConfirmed\":true,\"title\":\"CI Editor\",\"updatedAt\":1}" > "$editor_project_path"
+
 xcodebuild \
   -project MosaicMemories.xcodeproj \
   -scheme MosaicMemories \

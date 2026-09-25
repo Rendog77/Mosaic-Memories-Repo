@@ -140,9 +140,11 @@ private struct MosaicEditorScreen: View {
     var body: some View {
         Group {
             if case .loaded(let preview) = previewModel.state {
-                VStack(spacing: MosaicDesign.standardSpacing) {
+                ScrollView {
+                    VStack(spacing: MosaicDesign.standardSpacing) {
                     Text("Explore your mosaic")
                         .font(.title.bold())
+                        .accessibilityIdentifier("mosaic.editor.title")
                     Text("Pinch to zoom, drag to move, and tap a tile to see its memory.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -165,6 +167,7 @@ private struct MosaicEditorScreen: View {
                         )
                         .accessibilityLabel("Photo detail to hero likeness")
                         .accessibilityValue("\(Int((likeness * 100).rounded())) percent hero likeness")
+                        .accessibilityIdentifier("mosaic.editor.likeness")
                         .disabled(isEditBusy)
                         Text("\(Int((likeness * 100).rounded()))% hero likeness")
                             .font(.footnote)
@@ -217,6 +220,7 @@ private struct MosaicEditorScreen: View {
                                     isChoosingReplacement = true
                                 }
                                 .buttonStyle(.bordered)
+                                .accessibilityIdentifier("mosaic.editor.replace")
                                 .disabled(isEditBusy)
                             }
                             Spacer()
@@ -224,6 +228,7 @@ private struct MosaicEditorScreen: View {
                         .padding(MosaicDesign.compactSpacing)
                         .background(.background, in: RoundedRectangle(cornerRadius: MosaicDesign.cornerRadius))
                         .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("mosaic.editor.selection")
                     }
 
                     HStack(spacing: MosaicDesign.standardSpacing) {
@@ -231,12 +236,14 @@ private struct MosaicEditorScreen: View {
                             undoEdit()
                         }
                         .keyboardShortcut("z", modifiers: .command)
+                        .accessibilityIdentifier("mosaic.editor.undo")
                         .disabled(isEditBusy || !session.canUndoEdit)
 
                         Button("Redo", systemImage: "arrow.uturn.forward") {
                             redoEdit()
                         }
                         .keyboardShortcut("z", modifiers: [.command, .shift])
+                        .accessibilityIdentifier("mosaic.editor.redo")
                         .disabled(isEditBusy || !session.canRedoEdit)
                     }
 
@@ -245,8 +252,12 @@ private struct MosaicEditorScreen: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(MosaicDesign.accent)
+                    .accessibilityIdentifier("mosaic.editor.export")
                     .disabled(isEditBusy)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
+                .accessibilityIdentifier("mosaic.editor.scroll")
             } else {
                 StepCard(
                     title: "Preview required",
@@ -427,6 +438,7 @@ private struct TileReplacementPicker: View {
                                 ? "Current tile photo"
                                 : "Use this photo for the selected tile"
                         )
+                        .accessibilityIdentifier("mosaic.editor.replacement.\(item.reference.id)")
                         .task(id: item.id) {
                             if item.state == .idle {
                                 await model.loadThumbnail(for: item.id)
@@ -440,6 +452,7 @@ private struct TileReplacementPicker: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier("mosaic.editor.replacement.cancel")
                 }
             }
         }
@@ -486,6 +499,7 @@ private struct InteractiveMosaicCanvas: View {
                         }
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityIdentifier("mosaic.editor.reset-view")
                     .padding(MosaicDesign.compactSpacing)
                 }
             }
@@ -518,6 +532,7 @@ private struct InteractiveMosaicCanvas: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Interactive mosaic preview")
             .accessibilityValue("\(Int((scale * 100).rounded())) percent zoom")
+            .accessibilityIdentifier("mosaic.editor.canvas")
             .accessibilityAdjustableAction { direction in
                 switch direction {
                 case .increment:
