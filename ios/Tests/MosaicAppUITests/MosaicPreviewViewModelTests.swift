@@ -167,7 +167,7 @@ final class MosaicPreviewViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testRerenderPreservesAssignmentWithoutRegeneratingIt() async {
+    func testRerenderUsesRequestedAssignmentWithoutRegeneratingIt() async {
         let source = AssetReference(id: "source", origin: .testFixture)
         let tile = MosaicAssignedTile(
             coordinate: .init(column: 0, row: 0),
@@ -183,19 +183,26 @@ final class MosaicPreviewViewModelTests: XCTestCase {
         )
         let generator = RenderOnlyPreviewGenerator(initial: initial, refreshedData: Data([2]))
         let model = MosaicPreviewViewModel(generator: generator)
+        let replacementTile = MosaicAssignedTile(
+            coordinate: tile.coordinate,
+            source: .init(id: "replacement", origin: .testFixture)
+        )
 
         await model.load(project: .init())
-        await model.rerender(project: .init(recipe: .init(likeness: 0.8)))
+        await model.rerender(
+            project: .init(recipe: .init(likeness: 0.8)),
+            tiles: [replacementTile]
+        )
         let snapshot = await generator.snapshot()
 
         guard case .loaded(let output) = model.state else {
             return XCTFail("Expected refreshed preview")
         }
         XCTAssertEqual(output.data, Data([2]))
-        XCTAssertEqual(output.tiles, [tile])
+        XCTAssertEqual(output.tiles, [replacementTile])
         XCTAssertEqual(snapshot.generateCount, 1)
         XCTAssertEqual(snapshot.renderCount, 1)
-        XCTAssertEqual(snapshot.tiles, [tile])
+        XCTAssertEqual(snapshot.tiles, [replacementTile])
     }
 
     func testNormalizedPointMapsToAssignedTile() {

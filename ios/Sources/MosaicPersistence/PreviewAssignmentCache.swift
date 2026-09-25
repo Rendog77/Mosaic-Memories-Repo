@@ -8,7 +8,7 @@ public protocol PreviewAssignmentCaching: Sendable {
 }
 
 public actor JSONPreviewAssignmentCache: PreviewAssignmentCaching {
-    private static let documentVersion = 2
+    private static let documentVersion = 3
 
     private let directory: URL
     private let encoder: JSONEncoder
@@ -77,7 +77,7 @@ public actor JSONPreviewAssignmentCache: PreviewAssignmentCaching {
         project: MosaicProject
     ) -> Bool {
         guard assignment.engineVersion == project.recipe.engineVersion else { return false }
-        let permittedSources = Set(project.sources + Array(project.recipe.replacements.values))
+        let permittedSources = Set(project.sources)
         guard assignment.tiles.allSatisfy({ permittedSources.contains($0.source) }) else {
             return false
         }
@@ -104,7 +104,6 @@ private struct CacheKey: Codable, Equatable {
     let engineVersion: Int
     let columns: Int
     let repeatWindow: Int
-    let replacements: [TileCoordinate: AssetReference]
 
     init(project: MosaicProject) {
         projectID = project.id
@@ -116,6 +115,5 @@ private struct CacheKey: Codable, Equatable {
         engineVersion = project.recipe.engineVersion
         columns = project.recipe.columns
         repeatWindow = project.recipe.repeatWindow
-        replacements = project.recipe.replacements
     }
 }

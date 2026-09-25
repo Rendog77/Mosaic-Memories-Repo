@@ -99,7 +99,8 @@ public struct MosaicCreationView: View {
             MosaicEditorScreen(
                 session: session,
                 previewModel: previewModel,
-                inspectorModel: tileInspectorModel
+                inspectorModel: tileInspectorModel,
+                sourceModel: sourceModel
             )
         case .export:
             StepCard(
@@ -117,17 +118,22 @@ private struct MosaicEditorScreen: View {
     @ObservedObject var session: CreationSession
     @ObservedObject var previewModel: MosaicPreviewViewModel
     @ObservedObject var inspectorModel: HeroPhotoViewModel
+    @ObservedObject var sourceModel: SourceReviewViewModel
     @State private var selectedTile: MosaicAssignedTile?
     @State private var likeness: Double
+    @State private var isChoosingReplacement = false
+    @State private var isApplyingEdit = false
 
     init(
         session: CreationSession,
         previewModel: MosaicPreviewViewModel,
-        inspectorModel: HeroPhotoViewModel
+        inspectorModel: HeroPhotoViewModel,
+        sourceModel: SourceReviewViewModel
     ) {
         self.session = session
         self.previewModel = previewModel
         self.inspectorModel = inspectorModel
+        self.sourceModel = sourceModel
         _likeness = State(initialValue: session.workflow.project.recipe.likeness)
     }
 
@@ -159,6 +165,7 @@ private struct MosaicEditorScreen: View {
                         )
                         .accessibilityLabel("Photo detail to hero likeness")
                         .accessibilityValue("\(Int((likeness * 100).rounded())) percent hero likeness")
+                        .disabled(isEditBusy)
                         Text("\(Int((likeness * 100).rounded()))% hero likeness")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -175,7 +182,11 @@ private struct MosaicEditorScreen: View {
                     }
                     .frame(maxWidth: 520)
 
-                    InteractiveMosaicCanvas(preview: preview, selectedTile: selectedTile) { tile in
+                    InteractiveMosaicCanvas(
+                        preview: preview,
+                        selectedTile: selectedTile,
+                        pinnedCoordinates: Set(session.workflow.project.recipe.replacements.keys)
+                    ) { tile in
                         selectedTile = tile
                         inspectorModel.clear()
                         Task { await inspectorModel.load(tile.source, maximumPixelSize: 640) }
@@ -202,6 +213,11 @@ private struct MosaicEditorScreen: View {
                                 )
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                                Button("Replace tile") {
+                                    isChoosingReplacement = true
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(isEditBusy)
                             }
                             Spacer()
                         }
@@ -210,12 +226,19 @@ private struct MosaicEditorScreen: View {
                         .accessibilityElement(children: .contain)
                     }
 
+                    if session.canUndoTileReplacement {
+                        Button("Undo last replacement", systemImage: "arrow.uturn.backward") {
+                            undoLastReplacement()
+                        }
+                        .disabled(isEditBusy)
+                    }
+
                     Button("Continue to export") {
                         Task { await session.move(to: .export) }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(MosaicDesign.accent)
-                    .disabled(previewModel.refreshStatus != nil)
+                    .disabled(isEditBusy)
                 }
             } else {
                 StepCard(
@@ -228,11 +251,23 @@ private struct MosaicEditorScreen: View {
             }
         }
         .onDisappear { previewModel.cancel() }
+        .sheet(isPresented: $isChoosingReplacement) {
+            TileReplacementPicker(
+                model: sourceModel,
+                currentSource: selectedTile?.source
+            ) { source in
+                isChoosingReplacement = false
+                replaceSelectedTile(with: source)
+            }
+        }
     }
 
     private func applyLikeness() {
-        guard likeness != session.workflow.project.recipe.likeness else { return }
+        guard !isEditBusy,
+              likeness != session.workflow.project.recipe.likeness else { return }
+        isApplyingEdit = true
         Task {
+            defer { isApplyingEdit = false }
             let saved = await session.setLikeness(likeness)
             guard saved else {
                 likeness = session.workflow.project.recipe.likeness
@@ -241,11 +276,156 @@ private struct MosaicEditorScreen: View {
             await previewModel.rerender(project: session.workflow.project)
         }
     }
+
+    private func replaceSelectedTile(with source: AssetReference) {
+        guard !isEditBusy,
+              let selectedTile,
+              source != selectedTile.source else { return }
+        isApplyingEdit = true
+        Task {
+            defer { isApplyingEdit = false }
+            let saved = await session.replaceTile(
+                at: selectedTile.coordinate,
+                with: source,
+                replacing: selectedTile.source
+            )
+            guard saved else { return }
+            let updatedTiles = replacing(
+                selectedTile.coordinate,
+                with: source,
+                in: currentTiles
+            )
+            let rendered = await previewModel.rerender(
+                project: session.workflow.project,
+                tiles: updatedTiles
+            )
+            guard rendered else {
+                _ = await session.undoLastTileReplacement()
+                return
+            }
+            self.selectedTile = .init(coordinate: selectedTile.coordinate, source: source)
+            inspectorModel.clear()
+            await inspectorModel.load(source, maximumPixelSize: 640)
+        }
+    }
+
+    private func undoLastReplacement() {
+        guard !isEditBusy else { return }
+        isApplyingEdit = true
+        Task {
+            defer { isApplyingEdit = false }
+            let tilesBeforeUndo = currentTiles
+            guard let change = await session.undoLastTileReplacement() else { return }
+            let currentSource = tilesBeforeUndo.first {
+                $0.coordinate == change.coordinate
+            }?.source
+            let updatedTiles = replacing(
+                change.coordinate,
+                with: change.source,
+                in: tilesBeforeUndo
+            )
+            let rendered = await previewModel.rerender(
+                project: session.workflow.project,
+                tiles: updatedTiles
+            )
+            guard rendered else {
+                if let currentSource {
+                    _ = await session.replaceTile(
+                        at: change.coordinate,
+                        with: currentSource,
+                        replacing: change.source
+                    )
+                }
+                return
+            }
+            if selectedTile?.coordinate == change.coordinate {
+                selectedTile = .init(coordinate: change.coordinate, source: change.source)
+                inspectorModel.clear()
+                await inspectorModel.load(change.source, maximumPixelSize: 640)
+            }
+        }
+    }
+
+    private var currentTiles: [MosaicAssignedTile] {
+        guard case .loaded(let preview) = previewModel.state else { return [] }
+        return preview.tiles
+    }
+
+    private var isEditBusy: Bool {
+        isApplyingEdit || previewModel.refreshStatus != nil
+    }
+
+    private func replacing(
+        _ coordinate: TileCoordinate,
+        with source: AssetReference,
+        in tiles: [MosaicAssignedTile]
+    ) -> [MosaicAssignedTile] {
+        tiles.map { tile in
+            tile.coordinate == coordinate
+                ? .init(coordinate: coordinate, source: source)
+                : tile
+        }
+    }
+}
+
+private struct TileReplacementPicker: View {
+    @ObservedObject var model: SourceReviewViewModel
+    let currentSource: AssetReference?
+    let onSelect: (AssetReference) -> Void
+    @Environment(\.dismiss) private var dismiss
+    private let columns = [
+        GridItem(.adaptive(minimum: 92), spacing: MosaicDesign.compactSpacing),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: MosaicDesign.compactSpacing) {
+                    ForEach(model.items) { item in
+                        Button {
+                            onSelect(item.reference)
+                        } label: {
+                            ThumbnailView(state: item.state, emptySystemImage: "photo")
+                                .aspectRatio(1, contentMode: .fit)
+                                .overlay(alignment: .topTrailing) {
+                                    if item.reference == currentSource {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .symbolRenderingMode(.palette)
+                                            .foregroundStyle(.white, MosaicDesign.accent)
+                                            .padding(4)
+                                    }
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(item.reference == currentSource)
+                        .accessibilityLabel(
+                            item.reference == currentSource
+                                ? "Current tile photo"
+                                : "Use this photo for the selected tile"
+                        )
+                        .task(id: item.id) {
+                            if item.state == .idle {
+                                await model.loadThumbnail(for: item.id)
+                            }
+                        }
+                    }
+                }
+                .padding(MosaicDesign.standardSpacing)
+            }
+            .navigationTitle("Choose a replacement")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
 }
 
 private struct InteractiveMosaicCanvas: View {
     let preview: MosaicPreviewOutput
     let selectedTile: MosaicAssignedTile?
+    let pinnedCoordinates: Set<TileCoordinate>
     let onSelect: (MosaicAssignedTile) -> Void
 
     @State private var scale: CGFloat = 1
@@ -342,6 +522,25 @@ private struct InteractiveMosaicCanvas: View {
                     .offset(
                         x: CGFloat(selectedTile.coordinate.column) * cellWidth,
                         y: CGFloat(selectedTile.coordinate.row) * cellHeight
+                    )
+                    .allowsHitTesting(false)
+            }
+            ForEach(
+                pinnedCoordinates.sorted {
+                    ($0.row, $0.column) < ($1.row, $1.column)
+                },
+                id: \.self
+            ) { coordinate in
+                let cellWidth = size.width / CGFloat(preview.columns)
+                let cellHeight = size.height / CGFloat(preview.rows)
+                Image(systemName: "pin.fill")
+                    .font(.system(size: max(5, min(cellWidth, cellHeight) * 0.45)))
+                    .foregroundStyle(.orange)
+                    .shadow(color: .black.opacity(0.8), radius: 1)
+                    .frame(width: cellWidth, height: cellHeight, alignment: .topTrailing)
+                    .offset(
+                        x: CGFloat(coordinate.column) * cellWidth,
+                        y: CGFloat(coordinate.row) * cellHeight
                     )
                     .allowsHitTesting(false)
             }

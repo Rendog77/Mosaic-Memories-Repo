@@ -44,27 +44,43 @@ public struct CachedPreviewAssignmentGenerator: Sendable {
         guard Set(sources.map(\.reference)) == Set(project.sources) else {
             throw PreviewAssignmentGenerationError.sourcesDoNotMatchProject
         }
+        let targetCoordinates = Set(targets.map(\.coordinate))
+        let availableSources = Set(sources.map(\.reference))
+        guard Set(project.recipe.replacements.keys).isSubset(of: targetCoordinates),
+              project.recipe.replacements.values.allSatisfy({ availableSources.contains($0) }) else {
+            throw PreviewAssignmentGenerationError.invalidReplacements
+        }
 
         if let cached = await cache.load(for: project) {
             try Task.checkCancellation()
             if matchesInputs(cached, project: project, targets: targets, sources: sources) {
                 progress(.init(completed: targets.count, total: targets.count))
-                return .init(assignment: cached, origin: .cache)
+                return .init(
+                    assignment: applyingReplacements(
+                        project.recipe.replacements,
+                        to: cached
+                    ),
+                    origin: .cache
+                )
             }
             try? await cache.remove(for: project.id)
         }
 
-        let generated = try await assigner.assign(
+        let baseAssignment = try await assigner.assign(
             targets: targets,
             sources: sources,
             repeatWindow: project.recipe.repeatWindow,
             engineVersion: project.recipe.engineVersion,
             progress: progress
         )
+        let generated = applyingReplacements(
+            project.recipe.replacements,
+            to: baseAssignment
+        )
         try Task.checkCancellation()
 
         do {
-            try await cache.save(generated, for: project)
+            try await cache.save(baseAssignment, for: project)
         } catch {
             if Task.isCancelled {
                 try? await cache.remove(for: project.id)
@@ -80,6 +96,22 @@ public struct CachedPreviewAssignmentGenerator: Sendable {
             throw error
         }
         return .init(assignment: generated, origin: .generatedAndCached)
+    }
+
+    private func applyingReplacements(
+        _ replacements: [TileCoordinate: AssetReference],
+        to assignment: MosaicPreviewAssignment
+    ) -> MosaicPreviewAssignment {
+        guard !replacements.isEmpty else { return assignment }
+        return MosaicPreviewAssignment(
+            engineVersion: assignment.engineVersion,
+            tiles: assignment.tiles.map { tile in
+                MosaicAssignedTile(
+                    coordinate: tile.coordinate,
+                    source: replacements[tile.coordinate] ?? tile.source
+                )
+            }
+        )
     }
 
     private func matchesInputs(
@@ -102,4 +134,5 @@ public struct CachedPreviewAssignmentGenerator: Sendable {
 
 public enum PreviewAssignmentGenerationError: Error, Equatable, Sendable {
     case sourcesDoNotMatchProject
+    case invalidReplacements
 }

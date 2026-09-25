@@ -14,6 +14,22 @@ public enum PhotoSelectionState: Equatable, Sendable {
     case invalidSources(SourceSelectionValidationError)
 }
 
+public struct TileReplacementChange: Equatable, Sendable {
+    public let coordinate: TileCoordinate
+    public let source: AssetReference
+
+    public init(coordinate: TileCoordinate, source: AssetReference) {
+        self.coordinate = coordinate
+        self.source = source
+    }
+}
+
+private struct TileReplacementUndo: Sendable {
+    let coordinate: TileCoordinate
+    let previousOverride: AssetReference?
+    let previousSource: AssetReference
+}
+
 @MainActor
 public final class CreationSession: ObservableObject {
     @Published public private(set) var workflow: CreationWorkflow
@@ -23,6 +39,7 @@ public final class CreationSession: ObservableObject {
     @Published public private(set) var photoSelectionState: PhotoSelectionState = .idle
     @Published public private(set) var missingAssetIDs: Set<String> = []
     @Published public private(set) var isHeroMissing = false
+    @Published public private(set) var canUndoTileReplacement = false
 
     private let store: any ProjectStoring
     private let analytics: any AnalyticsRecording
@@ -30,6 +47,7 @@ public final class CreationSession: ObservableObject {
     private let sourceSelector: any SourcePhotosSelecting
     private let sourceValidator: SourceSelectionValidator
     private let assetChecker: (any PhotoAssetChecking)?
+    private var tileReplacementUndoStack: [TileReplacementUndo] = []
 
     public init(
         store: any ProjectStoring,
@@ -51,6 +69,7 @@ public final class CreationSession: ObservableObject {
     }
 
     public func startNewProject() async {
+        clearTileReplacementUndo()
         missingAssetIDs = []
         isHeroMissing = false
         workflow = CreationWorkflow()
@@ -61,6 +80,7 @@ public final class CreationSession: ObservableObject {
     }
 
     public func restoreMostRecentProject() async {
+        clearTileReplacementUndo()
         do {
             let projects = try await store.list()
             if let project = projects.first {
@@ -75,6 +95,7 @@ public final class CreationSession: ObservableObject {
     }
 
     public func selectHero(_ reference: AssetReference) async {
+        clearTileReplacementUndo()
         missingAssetIDs = []
         isHeroMissing = false
         workflow.selectHero(reference)
@@ -87,6 +108,8 @@ public final class CreationSession: ObservableObject {
         workflow.setHeroCrop(crop)
         if !(await persist()) {
             workflow = previousWorkflow
+        } else {
+            clearTileReplacementUndo()
         }
     }
 
@@ -104,6 +127,53 @@ public final class CreationSession: ObservableObject {
             return false
         }
         return true
+    }
+
+    @discardableResult
+    public func replaceTile(
+        at coordinate: TileCoordinate,
+        with source: AssetReference,
+        replacing currentSource: AssetReference
+    ) async -> Bool {
+        let previousWorkflow = workflow
+        let previousOverride = workflow.project.recipe.replacements[coordinate]
+        do {
+            try workflow.setTileReplacement(source, at: coordinate)
+        } catch {
+            message = "That photo cannot be used for this tile."
+            return false
+        }
+        guard await persist() else {
+            workflow = previousWorkflow
+            return false
+        }
+        tileReplacementUndoStack.append(
+            .init(
+                coordinate: coordinate,
+                previousOverride: previousOverride,
+                previousSource: currentSource
+            )
+        )
+        canUndoTileReplacement = true
+        return true
+    }
+
+    public func undoLastTileReplacement() async -> TileReplacementChange? {
+        guard let undo = tileReplacementUndoStack.last else { return nil }
+        let previousWorkflow = workflow
+        do {
+            try workflow.setTileReplacement(undo.previousOverride, at: undo.coordinate)
+        } catch {
+            message = "That tile change could not be undone."
+            return nil
+        }
+        guard await persist() else {
+            workflow = previousWorkflow
+            return nil
+        }
+        tileReplacementUndoStack.removeLast()
+        canUndoTileReplacement = !tileReplacementUndoStack.isEmpty
+        return .init(coordinate: undo.coordinate, source: undo.previousSource)
     }
 
     public func requestHeroSelection() async {
@@ -124,6 +194,7 @@ public final class CreationSession: ObservableObject {
     }
 
     public func reviewSources(_ references: [AssetReference]) async {
+        clearTileReplacementUndo()
         missingAssetIDs = []
         workflow.reviewSources(references)
         await persist()
@@ -179,6 +250,7 @@ public final class CreationSession: ObservableObject {
             workflow = originalWorkflow
             return false
         }
+        clearTileReplacementUndo()
         missingAssetIDs.remove(id)
         return true
     }
@@ -263,6 +335,11 @@ public final class CreationSession: ObservableObject {
         case .edit: return "edit"
         case .export: return "export"
         }
+    }
+
+    private func clearTileReplacementUndo() {
+        tileReplacementUndoStack = []
+        canUndoTileReplacement = false
     }
 
     private func handleSelectionError(_ error: PhotoSelectionError) {

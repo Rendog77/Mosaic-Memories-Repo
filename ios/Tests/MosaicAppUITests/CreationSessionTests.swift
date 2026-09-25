@@ -357,4 +357,58 @@ final class CreationSessionTests: XCTestCase {
         XCTAssertEqual(session.workflow.project.recipe.likeness, 0.5)
         XCTAssertEqual(session.message, "Changes could not be saved. Please try again.")
     }
+
+    func testTileReplacementPersistsAndCanBeUndone() async {
+        let original = AssetReference(id: "original", origin: .testFixture)
+        let replacement = AssetReference(id: "replacement", origin: .testFixture)
+        let coordinate = TileCoordinate(column: 0, row: 0)
+        let project = MosaicProject(
+            sources: [original, replacement],
+            sourcesConfirmed: true,
+            recipe: .init(columns: 1)
+        )
+        let store = InMemoryProjectStore()
+        let session = CreationSession(store: store, project: project, step: .edit)
+
+        let replaced = await session.replaceTile(
+            at: coordinate,
+            with: replacement,
+            replacing: original
+        )
+        let savedReplacement = try? await store.load(id: project.id)
+        let undone = await session.undoLastTileReplacement()
+        let savedUndo = try? await store.load(id: project.id)
+
+        XCTAssertTrue(replaced)
+        XCTAssertEqual(savedReplacement?.recipe.replacements[coordinate], replacement)
+        XCTAssertEqual(undone, .init(coordinate: coordinate, source: original))
+        XCTAssertNil(savedUndo?.recipe.replacements[coordinate])
+        XCTAssertFalse(session.canUndoTileReplacement)
+    }
+
+    func testTileReplacementRollsBackWhenPersistenceFails() async {
+        let original = AssetReference(id: "original", origin: .testFixture)
+        let replacement = AssetReference(id: "replacement", origin: .testFixture)
+        let coordinate = TileCoordinate(column: 0, row: 0)
+        let project = MosaicProject(
+            sources: [original, replacement],
+            sourcesConfirmed: true,
+            recipe: .init(columns: 1)
+        )
+        let session = CreationSession(
+            store: SaveFailingProjectStore(),
+            project: project,
+            step: .edit
+        )
+
+        let replaced = await session.replaceTile(
+            at: coordinate,
+            with: replacement,
+            replacing: original
+        )
+
+        XCTAssertFalse(replaced)
+        XCTAssertNil(session.workflow.project.recipe.replacements[coordinate])
+        XCTAssertFalse(session.canUndoTileReplacement)
+    }
 }

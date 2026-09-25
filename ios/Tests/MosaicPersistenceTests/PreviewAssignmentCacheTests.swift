@@ -33,6 +33,20 @@ final class PreviewAssignmentCacheTests: XCTestCase {
         XCTAssertEqual(loaded, makeAssignment(for: project))
     }
 
+    func testReplacementChangeReusesCachedBaseAssignment() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = JSONPreviewAssignmentCache(directory: directory)
+        var project = makeProject()
+        let assignment = makeAssignment(for: project)
+        try await cache.save(assignment, for: project)
+
+        project.recipe.replacements[.init(column: 0, row: 0)] = project.sources[1]
+        let loaded = await cache.load(for: project)
+
+        XCTAssertEqual(loaded, assignment)
+    }
+
     func testAssignmentRecipeChangeInvalidatesAndRemovesCachedAssignment() async throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

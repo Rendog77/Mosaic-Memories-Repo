@@ -81,6 +81,33 @@ final class CreationWorkflowTests: XCTestCase {
         XCTAssertEqual(workflow.project.recipe.likeness, 0.8)
     }
 
+    func testTileReplacementRequiresConfirmedSourceAndValidCoordinate() throws {
+        let first = AssetReference(id: "first", origin: .testFixture)
+        let second = AssetReference(id: "second", origin: .testFixture)
+        let project = MosaicProject(
+            sources: [first, second],
+            sourcesConfirmed: true,
+            recipe: .init(columns: 2)
+        )
+        var workflow = CreationWorkflow(project: project, step: .edit)
+        let coordinate = TileCoordinate(column: 1, row: 2)
+
+        try workflow.setTileReplacement(second, at: coordinate)
+
+        XCTAssertEqual(workflow.project.recipe.replacements[coordinate], second)
+        try workflow.setTileReplacement(nil, at: coordinate)
+        XCTAssertNil(workflow.project.recipe.replacements[coordinate])
+        XCTAssertThrowsError(
+            try workflow.setTileReplacement(
+                .init(id: "unknown", origin: .testFixture),
+                at: coordinate
+            )
+        )
+        XCTAssertThrowsError(
+            try workflow.setTileReplacement(second, at: .init(column: 2, row: 0))
+        )
+    }
+
     func testRemovingSourceReturnsToReviewAndUpdatesReadiness() throws {
         var workflow = CreationWorkflow()
         let sources = (0..<100).map { AssetReference(id: "source-\($0)", origin: .testFixture) }

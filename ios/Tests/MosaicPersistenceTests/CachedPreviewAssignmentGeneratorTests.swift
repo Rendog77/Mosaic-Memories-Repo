@@ -96,6 +96,44 @@ final class CachedPreviewAssignmentGeneratorTests: XCTestCase {
         XCTAssertEqual(collector.snapshot().last, .init(completed: 3, total: 3))
     }
 
+    func testReplacementOverridesResultButCachesBaseAssignment() async throws {
+        var fixture = try makeFixture(targetCount: 1)
+        let replacement = fixture.project.sources[1]
+        fixture.project.recipe.replacements[.init(column: 0, row: 0)] = replacement
+        let cache = PreviewCacheStub()
+
+        let result = try await CachedPreviewAssignmentGenerator(cache: cache).assignment(
+            for: fixture.project,
+            targets: fixture.targets,
+            sources: fixture.sources
+        )
+        let snapshot = await cache.snapshot()
+
+        XCTAssertEqual(result.assignment.tiles[0].source, replacement)
+        XCTAssertEqual(snapshot.saved?.tiles[0].source, fixture.project.sources[0])
+    }
+
+    func testReplacementIsAppliedToCachedBaseAssignment() async throws {
+        var fixture = try makeFixture(targetCount: 1)
+        let cached = try MosaicPreviewAssigner().assign(
+            targets: fixture.targets,
+            sources: fixture.sources,
+            repeatWindow: fixture.project.recipe.repeatWindow
+        )
+        let replacement = fixture.project.sources[1]
+        fixture.project.recipe.replacements[.init(column: 0, row: 0)] = replacement
+        let cache = PreviewCacheStub(loaded: cached)
+
+        let result = try await CachedPreviewAssignmentGenerator(cache: cache).assignment(
+            for: fixture.project,
+            targets: fixture.targets,
+            sources: fixture.sources
+        )
+
+        XCTAssertEqual(result.origin, .cache)
+        XCTAssertEqual(result.assignment.tiles[0].source, replacement)
+    }
+
     func testInvalidCacheEntryIsRemovedAndRegenerated() async throws {
         let fixture = try makeFixture(targetCount: 2)
         let incomplete = MosaicPreviewAssignment(

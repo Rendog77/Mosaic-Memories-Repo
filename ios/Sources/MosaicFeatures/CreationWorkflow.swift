@@ -27,6 +27,7 @@ public struct CreationWorkflow: Equatable, Sendable {
     public mutating func selectHero(_ hero: AssetReference) {
         project.hero = hero
         project.heroCrop = nil
+        project.recipe.replacements = [:]
         if !project.sources.isEmpty {
             project.sourcesConfirmed = false
         }
@@ -36,6 +37,7 @@ public struct CreationWorkflow: Equatable, Sendable {
 
     public mutating func setHeroCrop(_ crop: HeroCrop?) {
         project.heroCrop = crop
+        project.recipe.replacements = [:]
         touch()
     }
 
@@ -47,6 +49,27 @@ public struct CreationWorkflow: Equatable, Sendable {
         touch()
     }
 
+    public mutating func setTileReplacement(
+        _ source: AssetReference?,
+        at coordinate: TileCoordinate
+    ) throws {
+        guard project.sourcesConfirmed,
+              coordinate.column >= 0,
+              coordinate.column < project.recipe.columns,
+              coordinate.row >= 0 else {
+            throw CreationWorkflowError.invalidTileCoordinate
+        }
+        if let source {
+            guard project.sources.contains(source) else {
+                throw CreationWorkflowError.replacementSourceUnavailable
+            }
+            project.recipe.replacements[coordinate] = source
+        } else {
+            project.recipe.replacements.removeValue(forKey: coordinate)
+        }
+        touch()
+    }
+
     public mutating func confirmSources(_ sources: [AssetReference], minimum: Int = 100) throws {
         reviewSources(sources)
         try confirmReviewedSources(minimum: minimum)
@@ -54,6 +77,7 @@ public struct CreationWorkflow: Equatable, Sendable {
 
     public mutating func reviewSources(_ sources: [AssetReference]) {
         project.sources = sources
+        project.recipe.replacements = [:]
         project.sourcesConfirmed = false
         touch()
         step = .sourceReview
@@ -64,6 +88,9 @@ public struct CreationWorkflow: Equatable, Sendable {
         let originalCount = project.sources.count
         project.sources.removeAll { $0.id == id }
         guard project.sources.count != originalCount else { return false }
+        project.recipe.replacements = project.recipe.replacements.filter {
+            $0.value.id != id
+        }
         project.sourcesConfirmed = false
         touch()
         step = .sourceReview
@@ -105,4 +132,6 @@ public struct CreationWorkflow: Equatable, Sendable {
 public enum CreationWorkflowError: Error, Equatable {
     case insufficientSources(required: Int, actual: Int)
     case invalidLikeness
+    case invalidTileCoordinate
+    case replacementSourceUnavailable
 }

@@ -195,8 +195,13 @@ public final class MosaicPreviewViewModel: ObservableObject {
         }
     }
 
-    public func rerender(project: MosaicProject) async {
-        guard case .loaded(let existingOutput) = state else { return }
+    @discardableResult
+    public func rerender(
+        project: MosaicProject,
+        tiles requestedTiles: [MosaicAssignedTile]? = nil
+    ) async -> Bool {
+        guard case .loaded(let existingOutput) = state else { return false }
+        let tiles = requestedTiles ?? existingOutput.tiles
         cancelActiveGeneration(updateState: false)
         let identifier = UUID()
         generationID = identifier
@@ -206,7 +211,7 @@ public final class MosaicPreviewViewModel: ObservableObject {
         let task = Task {
             try await generator.renderPreview(
                 for: project,
-                tiles: existingOutput.tiles
+                tiles: tiles
             ) { [weak self] progress in
                 Task { @MainActor in
                     guard self?.generationID == identifier else { return }
@@ -222,26 +227,29 @@ public final class MosaicPreviewViewModel: ObservableObject {
             } onCancel: {
                 task.cancel()
             }
-            guard generationID == identifier else { return }
+            guard generationID == identifier else { return false }
             generationTask = nil
             generationID = nil
             refreshStatus = nil
-            guard output.isValid, output.tiles == existingOutput.tiles else {
+            guard output.isValid, output.tiles == tiles else {
                 refreshMessage = "The updated preview was invalid. Your previous preview is still available."
-                return
+                return false
             }
             state = .loaded(output)
+            return true
         } catch is CancellationError {
-            guard generationID == identifier else { return }
+            guard generationID == identifier else { return false }
             generationTask = nil
             generationID = nil
             refreshStatus = nil
+            return false
         } catch {
-            guard generationID == identifier else { return }
+            guard generationID == identifier else { return false }
             generationTask = nil
             generationID = nil
             refreshStatus = nil
-            refreshMessage = "The likeness preview could not be updated. Your previous preview is still available."
+            refreshMessage = "The edited preview could not be updated. Your previous preview is still available."
+            return false
         }
     }
 
