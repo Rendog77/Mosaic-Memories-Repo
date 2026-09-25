@@ -13,6 +13,7 @@ public struct MosaicCreationView: View {
     @StateObject private var heroModel: HeroPhotoViewModel
     @StateObject private var sourceModel: SourceReviewViewModel
     @StateObject private var previewModel: MosaicPreviewViewModel
+    @StateObject private var tileInspectorModel: HeroPhotoViewModel
     private let onClose: () -> Void
     private let onChooseHero: (() -> Void)?
     private let onChooseSources: (() -> Void)?
@@ -36,6 +37,7 @@ public struct MosaicCreationView: View {
             )
         )
         _previewModel = StateObject(wrappedValue: MosaicPreviewViewModel(generator: previewGenerator))
+        _tileInspectorModel = StateObject(wrappedValue: HeroPhotoViewModel(loader: assetLoader))
         self.onChooseHero = onChooseHero
         self.onChooseSources = onChooseSources
         self.onRemoveSource = onRemoveSource
@@ -94,13 +96,11 @@ public struct MosaicCreationView: View {
         case .preview:
             PreviewPreparationScreen(session: session, model: previewModel)
         case .edit:
-            StepCard(
-                title: "Make it yours",
-                detail: "Zoom, inspect memories, replace tiles, and balance photo detail with hero likeness.",
-                actionTitle: "Continue to export"
-            ) {
-                await session.move(to: .export)
-            }
+            MosaicEditorScreen(
+                session: session,
+                previewModel: previewModel,
+                inspectorModel: tileInspectorModel
+            )
         case .export:
             StepCard(
                 title: "Keep your memory",
@@ -110,6 +110,235 @@ public struct MosaicCreationView: View {
                 await session.startNewProject()
             }
         }
+    }
+}
+
+private struct MosaicEditorScreen: View {
+    @ObservedObject var session: CreationSession
+    @ObservedObject var previewModel: MosaicPreviewViewModel
+    @ObservedObject var inspectorModel: HeroPhotoViewModel
+    @State private var selectedTile: MosaicAssignedTile?
+
+    var body: some View {
+        if case .loaded(let preview) = previewModel.state {
+            VStack(spacing: MosaicDesign.standardSpacing) {
+                Text("Explore your mosaic")
+                    .font(.title.bold())
+                Text("Pinch to zoom, drag to move, and tap a tile to see its memory.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                InteractiveMosaicCanvas(preview: preview, selectedTile: selectedTile) { tile in
+                    selectedTile = tile
+                    inspectorModel.clear()
+                    Task { await inspectorModel.load(tile.source, maximumPixelSize: 640) }
+                }
+                .aspectRatio(
+                    CGFloat(preview.width) / CGFloat(preview.height),
+                    contentMode: .fit
+                )
+                .frame(maxWidth: 620, maxHeight: 440)
+
+                if let selectedTile {
+                    HStack(spacing: MosaicDesign.standardSpacing) {
+                        ThumbnailView(
+                            state: inspectorModel.thumbnailState,
+                            emptySystemImage: "photo"
+                        )
+                        .frame(width: 96, height: 96)
+                        VStack(alignment: .leading, spacing: MosaicDesign.compactSpacing) {
+                            Text("Selected memory")
+                                .font(.headline)
+                            Text(
+                                "Tile \(selectedTile.coordinate.column + 1), " +
+                                    "\(selectedTile.coordinate.row + 1)"
+                            )
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(MosaicDesign.compactSpacing)
+                    .background(.background, in: RoundedRectangle(cornerRadius: MosaicDesign.cornerRadius))
+                    .accessibilityElement(children: .contain)
+                }
+
+                Button("Continue to export") {
+                    Task { await session.move(to: .export) }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(MosaicDesign.accent)
+            }
+        } else {
+            StepCard(
+                title: "Preview required",
+                detail: "Create the mosaic preview before opening the editor.",
+                actionTitle: "Create preview"
+            ) {
+                await session.move(to: .preview)
+            }
+        }
+    }
+}
+
+private struct InteractiveMosaicCanvas: View {
+    let preview: MosaicPreviewOutput
+    let selectedTile: MosaicAssignedTile?
+    let onSelect: (MosaicAssignedTile) -> Void
+
+    @State private var scale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @GestureState private var gestureScale: CGFloat = 1
+    @GestureState private var gestureTranslation: CGSize = .zero
+
+    var body: some View {
+        GeometryReader { geometry in
+            let imageSize = fittedSize(in: geometry.size)
+            let displayedScale = boundedScale(scale * gestureScale)
+            let displayedOffset = boundedOffset(
+                CGSize(
+                    width: offset.width + gestureTranslation.width,
+                    height: offset.height + gestureTranslation.height
+                ),
+                imageSize: imageSize,
+                scale: displayedScale
+            )
+
+            ZStack {
+                Color.black.opacity(0.08)
+                mosaicLayer(size: imageSize)
+                    .scaleEffect(displayedScale)
+                    .offset(displayedOffset)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: MosaicDesign.cornerRadius))
+            .overlay(alignment: .topTrailing) {
+                if scale > 1.001 || offset != .zero {
+                    Button("Reset view") {
+                        withAnimation {
+                            scale = 1
+                            offset = .zero
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(MosaicDesign.compactSpacing)
+                }
+            }
+            .simultaneousGesture(
+                MagnificationGesture()
+                    .updating($gestureScale) { value, state, _ in state = value }
+                    .onEnded { value in
+                        let newScale = boundedScale(scale * value)
+                        scale = newScale
+                        offset = boundedOffset(offset, imageSize: imageSize, scale: newScale)
+                    }
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 6)
+                    .updating($gestureTranslation) { value, state, _ in
+                        if displayedScale > 1 { state = value.translation }
+                    }
+                    .onEnded { value in
+                        guard displayedScale > 1 else { return }
+                        offset = boundedOffset(
+                            CGSize(
+                                width: offset.width + value.translation.width,
+                                height: offset.height + value.translation.height
+                            ),
+                            imageSize: imageSize,
+                            scale: displayedScale
+                        )
+                    }
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Interactive mosaic preview")
+            .accessibilityValue("\(Int((scale * 100).rounded())) percent zoom")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment:
+                    scale = boundedScale(scale + 0.5)
+                    offset = boundedOffset(offset, imageSize: imageSize, scale: scale)
+                case .decrement:
+                    scale = boundedScale(scale - 0.5)
+                    offset = boundedOffset(offset, imageSize: imageSize, scale: scale)
+                @unknown default: break
+                }
+            }
+        }
+    }
+
+    private func mosaicLayer(size: CGSize) -> some View {
+        ZStack(alignment: .topLeading) {
+            previewImage
+                .frame(width: size.width, height: size.height)
+            if let selectedTile {
+                let cellWidth = size.width / CGFloat(preview.columns)
+                let cellHeight = size.height / CGFloat(preview.rows)
+                Rectangle()
+                    .stroke(.white, lineWidth: 2)
+                    .shadow(color: .black.opacity(0.8), radius: 1)
+                    .frame(width: cellWidth, height: cellHeight)
+                    .offset(
+                        x: CGFloat(selectedTile.coordinate.column) * cellWidth,
+                        y: CGFloat(selectedTile.coordinate.row) * cellHeight
+                    )
+                    .allowsHitTesting(false)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .contentShape(Rectangle())
+        .gesture(
+            SpatialTapGesture().onEnded { value in
+                guard size.width > 0, size.height > 0,
+                      let tile = preview.tile(
+                          normalizedX: Double(value.location.x / size.width),
+                          normalizedY: Double(value.location.y / size.height)
+                      ) else { return }
+                onSelect(tile)
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var previewImage: some View {
+#if canImport(UIKit)
+        if let image = UIImage(data: preview.data) {
+            Image(uiImage: image).resizable()
+        } else {
+            Color.secondary
+        }
+#elseif canImport(AppKit)
+        if let image = NSImage(data: preview.data) {
+            Image(nsImage: image).resizable()
+        } else {
+            Color.secondary
+        }
+#else
+        Color.secondary
+#endif
+    }
+
+    private func fittedSize(in available: CGSize) -> CGSize {
+        guard available.width > 0, available.height > 0 else { return .zero }
+        let imageAspect = CGFloat(preview.width) / CGFloat(preview.height)
+        let availableAspect = available.width / available.height
+        if imageAspect > availableAspect {
+            return .init(width: available.width, height: available.width / imageAspect)
+        }
+        return .init(width: available.height * imageAspect, height: available.height)
+    }
+
+    private func boundedScale(_ value: CGFloat) -> CGFloat {
+        min(6, max(1, value))
+    }
+
+    private func boundedOffset(_ value: CGSize, imageSize: CGSize, scale: CGFloat) -> CGSize {
+        guard scale > 1 else { return .zero }
+        let maximumX = imageSize.width * (scale - 1) / 2
+        let maximumY = imageSize.height * (scale - 1) / 2
+        return .init(
+            width: min(maximumX, max(-maximumX, value.width)),
+            height: min(maximumY, max(-maximumY, value.height))
+        )
     }
 }
 

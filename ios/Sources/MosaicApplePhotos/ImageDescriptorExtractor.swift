@@ -327,7 +327,10 @@ extension ApplePhotoPreviewAssignmentService: MosaicPreviewGenerating {
         return .init(
             data: result.image.data,
             width: result.image.width,
-            height: result.image.height
+            height: result.image.height,
+            columns: result.image.columns,
+            rows: result.image.rows,
+            tiles: result.assignment.tiles
         )
     }
 }

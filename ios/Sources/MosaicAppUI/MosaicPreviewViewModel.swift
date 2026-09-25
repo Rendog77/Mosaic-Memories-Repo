@@ -39,11 +39,53 @@ public struct MosaicPreviewOutput: Equatable, Sendable {
     public let data: Data
     public let width: Int
     public let height: Int
+    public let columns: Int
+    public let rows: Int
+    public let tiles: [MosaicAssignedTile]
 
-    public init(data: Data, width: Int, height: Int) {
+    public init(
+        data: Data,
+        width: Int,
+        height: Int,
+        columns: Int,
+        rows: Int,
+        tiles: [MosaicAssignedTile]
+    ) {
         self.data = data
         self.width = width
         self.height = height
+        self.columns = columns
+        self.rows = rows
+        self.tiles = tiles
+    }
+
+    public var isValid: Bool {
+        guard !data.isEmpty, width > 0, height > 0, columns > 0, rows > 0 else {
+            return false
+        }
+        let (expectedCount, overflow) = columns.multipliedReportingOverflow(by: rows)
+        guard !overflow, tiles.count == expectedCount else { return false }
+        guard tiles.allSatisfy({
+            $0.coordinate.column >= 0 && $0.coordinate.column < columns &&
+                $0.coordinate.row >= 0 && $0.coordinate.row < rows
+        }) else {
+            return false
+        }
+        return Set(tiles.map(\.coordinate)).count == tiles.count
+    }
+
+    public func tile(normalizedX: Double, normalizedY: Double) -> MosaicAssignedTile? {
+        guard normalizedX.isFinite, normalizedY.isFinite,
+              normalizedX >= 0, normalizedX < 1,
+              normalizedY >= 0, normalizedY < 1,
+              columns > 0, rows > 0 else {
+            return nil
+        }
+        let coordinate = TileCoordinate(
+            column: min(columns - 1, Int(normalizedX * Double(columns))),
+            row: min(rows - 1, Int(normalizedY * Double(rows)))
+        )
+        return tiles.first { $0.coordinate == coordinate }
     }
 }
 
@@ -114,7 +156,7 @@ public final class MosaicPreviewViewModel: ObservableObject {
             guard generationID == identifier else { return }
             generationTask = nil
             generationID = nil
-            if output.data.isEmpty || output.width <= 0 || output.height <= 0 {
+            if !output.isValid {
                 state = .failed(
                     "The generated preview image was invalid. Please try creating it again."
                 )

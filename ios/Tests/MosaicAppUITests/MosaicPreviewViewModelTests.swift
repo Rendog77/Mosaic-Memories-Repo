@@ -40,7 +40,7 @@ private actor CancellablePreviewGenerator: MosaicPreviewGenerating {
         progress(.init(stage: .analyzingPhotos, completed: 0, total: 10))
         do {
             try await Task.sleep(nanoseconds: 10_000_000_000)
-            return .init(data: Data(), width: 1, height: 1)
+            return .init(data: Data(), width: 1, height: 1, columns: 1, rows: 1, tiles: [])
         } catch is CancellationError {
             observedCancellation = true
             throw CancellationError()
@@ -59,7 +59,15 @@ private actor CancellablePreviewGenerator: MosaicPreviewGenerating {
 final class MosaicPreviewViewModelTests: XCTestCase {
     @MainActor
     func testSuccessfulLoadPublishesRenderedOutput() async {
-        let output = MosaicPreviewOutput(data: Data([1, 2, 3]), width: 640, height: 480)
+        let source = AssetReference(id: "source", origin: .testFixture)
+        let output = MosaicPreviewOutput(
+            data: Data([1, 2, 3]),
+            width: 640,
+            height: 480,
+            columns: 1,
+            rows: 1,
+            tiles: [.init(coordinate: .init(column: 0, row: 0), source: source)]
+        )
         let model = MosaicPreviewViewModel(generator: SuccessfulPreviewGenerator(output: output))
 
         await model.load(project: .init())
@@ -113,5 +121,26 @@ final class MosaicPreviewViewModelTests: XCTestCase {
             ).fractionCompleted,
             1
         )
+    }
+
+    func testNormalizedPointMapsToAssignedTile() {
+        let left = AssetReference(id: "left", origin: .testFixture)
+        let right = AssetReference(id: "right", origin: .testFixture)
+        let output = MosaicPreviewOutput(
+            data: Data([1]),
+            width: 200,
+            height: 100,
+            columns: 2,
+            rows: 1,
+            tiles: [
+                .init(coordinate: .init(column: 0, row: 0), source: left),
+                .init(coordinate: .init(column: 1, row: 0), source: right),
+            ]
+        )
+
+        XCTAssertEqual(output.tile(normalizedX: 0.1, normalizedY: 0.5)?.source, left)
+        XCTAssertEqual(output.tile(normalizedX: 0.9, normalizedY: 0.5)?.source, right)
+        XCTAssertNil(output.tile(normalizedX: 1, normalizedY: 0.5))
+        XCTAssertNil(output.tile(normalizedX: -0.1, normalizedY: 0.5))
     }
 }
