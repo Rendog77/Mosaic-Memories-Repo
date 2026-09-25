@@ -8,7 +8,7 @@ public protocol PreviewAssignmentCaching: Sendable {
 }
 
 public actor JSONPreviewAssignmentCache: PreviewAssignmentCaching {
-    private static let documentVersion = 1
+    private static let documentVersion = 2
 
     private let directory: URL
     private let encoder: JSONEncoder
@@ -101,7 +101,10 @@ private struct CacheKey: Codable, Equatable {
     let hero: AssetReference?
     let heroCrop: HeroCrop?
     let sources: [AssetReference]
-    let recipe: MosaicRecipe
+    let engineVersion: Int
+    let columns: Int
+    let repeatWindow: Int
+    let replacements: [TileCoordinate: AssetReference]
 
     init(project: MosaicProject) {
         projectID = project.id
@@ -110,6 +113,9 @@ private struct CacheKey: Codable, Equatable {
         sources = project.sources.sorted {
             ($0.origin.rawValue, $0.id) < ($1.origin.rawValue, $1.id)
         }
-        recipe = project.recipe
+        engineVersion = project.recipe.engineVersion
+        columns = project.recipe.columns
+        repeatWindow = project.recipe.repeatWindow
+        replacements = project.recipe.replacements
     }
 }

@@ -56,6 +56,49 @@ private actor CancellablePreviewGenerator: MosaicPreviewGenerating {
     }
 }
 
+private actor RenderOnlyPreviewGenerator: MosaicPreviewGenerating {
+    let initial: MosaicPreviewOutput
+    let refreshedData: Data
+    private var generateCount = 0
+    private var renderCount = 0
+    private var renderedTiles: [MosaicAssignedTile] = []
+
+    init(initial: MosaicPreviewOutput, refreshedData: Data) {
+        self.initial = initial
+        self.refreshedData = refreshedData
+    }
+
+    func generatePreview(
+        for project: MosaicProject,
+        progress: @escaping @Sendable (MosaicPreviewGenerationStatus) -> Void
+    ) async throws -> MosaicPreviewOutput {
+        generateCount += 1
+        return initial
+    }
+
+    func renderPreview(
+        for project: MosaicProject,
+        tiles: [MosaicAssignedTile],
+        progress: @escaping @Sendable (MosaicPreviewGenerationStatus) -> Void
+    ) async throws -> MosaicPreviewOutput {
+        renderCount += 1
+        renderedTiles = tiles
+        progress(.init(stage: .renderingMosaic, completed: 1, total: 1))
+        return .init(
+            data: refreshedData,
+            width: initial.width,
+            height: initial.height,
+            columns: initial.columns,
+            rows: initial.rows,
+            tiles: tiles
+        )
+    }
+
+    func snapshot() -> (generateCount: Int, renderCount: Int, tiles: [MosaicAssignedTile]) {
+        (generateCount, renderCount, renderedTiles)
+    }
+}
+
 final class MosaicPreviewViewModelTests: XCTestCase {
     @MainActor
     func testSuccessfulLoadPublishesRenderedOutput() async {
@@ -121,6 +164,38 @@ final class MosaicPreviewViewModelTests: XCTestCase {
             ).fractionCompleted,
             1
         )
+    }
+
+    @MainActor
+    func testRerenderPreservesAssignmentWithoutRegeneratingIt() async {
+        let source = AssetReference(id: "source", origin: .testFixture)
+        let tile = MosaicAssignedTile(
+            coordinate: .init(column: 0, row: 0),
+            source: source
+        )
+        let initial = MosaicPreviewOutput(
+            data: Data([1]),
+            width: 100,
+            height: 100,
+            columns: 1,
+            rows: 1,
+            tiles: [tile]
+        )
+        let generator = RenderOnlyPreviewGenerator(initial: initial, refreshedData: Data([2]))
+        let model = MosaicPreviewViewModel(generator: generator)
+
+        await model.load(project: .init())
+        await model.rerender(project: .init(recipe: .init(likeness: 0.8)))
+        let snapshot = await generator.snapshot()
+
+        guard case .loaded(let output) = model.state else {
+            return XCTFail("Expected refreshed preview")
+        }
+        XCTAssertEqual(output.data, Data([2]))
+        XCTAssertEqual(output.tiles, [tile])
+        XCTAssertEqual(snapshot.generateCount, 1)
+        XCTAssertEqual(snapshot.renderCount, 1)
+        XCTAssertEqual(snapshot.tiles, [tile])
     }
 
     func testNormalizedPointMapsToAssignedTile() {

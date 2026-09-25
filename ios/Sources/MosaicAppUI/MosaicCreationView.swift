@@ -118,65 +118,127 @@ private struct MosaicEditorScreen: View {
     @ObservedObject var previewModel: MosaicPreviewViewModel
     @ObservedObject var inspectorModel: HeroPhotoViewModel
     @State private var selectedTile: MosaicAssignedTile?
+    @State private var likeness: Double
+
+    init(
+        session: CreationSession,
+        previewModel: MosaicPreviewViewModel,
+        inspectorModel: HeroPhotoViewModel
+    ) {
+        self.session = session
+        self.previewModel = previewModel
+        self.inspectorModel = inspectorModel
+        _likeness = State(initialValue: session.workflow.project.recipe.likeness)
+    }
 
     var body: some View {
-        if case .loaded(let preview) = previewModel.state {
-            VStack(spacing: MosaicDesign.standardSpacing) {
-                Text("Explore your mosaic")
-                    .font(.title.bold())
-                Text("Pinch to zoom, drag to move, and tap a tile to see its memory.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                InteractiveMosaicCanvas(preview: preview, selectedTile: selectedTile) { tile in
-                    selectedTile = tile
-                    inspectorModel.clear()
-                    Task { await inspectorModel.load(tile.source, maximumPixelSize: 640) }
-                }
-                .aspectRatio(
-                    CGFloat(preview.width) / CGFloat(preview.height),
-                    contentMode: .fit
-                )
-                .frame(maxWidth: 620, maxHeight: 440)
+        Group {
+            if case .loaded(let preview) = previewModel.state {
+                VStack(spacing: MosaicDesign.standardSpacing) {
+                    Text("Explore your mosaic")
+                        .font(.title.bold())
+                    Text("Pinch to zoom, drag to move, and tap a tile to see its memory.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
 
-                if let selectedTile {
-                    HStack(spacing: MosaicDesign.standardSpacing) {
-                        ThumbnailView(
-                            state: inspectorModel.thumbnailState,
-                            emptySystemImage: "photo"
-                        )
-                        .frame(width: 96, height: 96)
-                        VStack(alignment: .leading, spacing: MosaicDesign.compactSpacing) {
-                            Text("Selected memory")
-                                .font(.headline)
-                            Text(
-                                "Tile \(selectedTile.coordinate.column + 1), " +
-                                    "\(selectedTile.coordinate.row + 1)"
-                            )
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                    VStack(spacing: MosaicDesign.compactSpacing) {
+                        HStack {
+                            Text("Photo Detail")
+                            Spacer()
+                            Text("Hero Likeness")
                         }
-                        Spacer()
+                        .font(.caption.bold())
+                        Slider(
+                            value: $likeness,
+                            in: 0...1,
+                            step: 0.05,
+                            onEditingChanged: { isEditing in
+                                if !isEditing { applyLikeness() }
+                            }
+                        )
+                        .accessibilityLabel("Photo detail to hero likeness")
+                        .accessibilityValue("\(Int((likeness * 100).rounded())) percent hero likeness")
+                        Text("\(Int((likeness * 100).rounded()))% hero likeness")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        if let status = previewModel.refreshStatus {
+                            ProgressView(value: status.fractionCompleted)
+                                .accessibilityLabel("Updating hero likeness")
+                        }
+                        if let message = previewModel.refreshMessage {
+                            Text(message)
+                                .font(.footnote)
+                                .foregroundStyle(.orange)
+                                .multilineTextAlignment(.center)
+                        }
                     }
-                    .padding(MosaicDesign.compactSpacing)
-                    .background(.background, in: RoundedRectangle(cornerRadius: MosaicDesign.cornerRadius))
-                    .accessibilityElement(children: .contain)
-                }
+                    .frame(maxWidth: 520)
 
-                Button("Continue to export") {
-                    Task { await session.move(to: .export) }
+                    InteractiveMosaicCanvas(preview: preview, selectedTile: selectedTile) { tile in
+                        selectedTile = tile
+                        inspectorModel.clear()
+                        Task { await inspectorModel.load(tile.source, maximumPixelSize: 640) }
+                    }
+                    .aspectRatio(
+                        CGFloat(preview.width) / CGFloat(preview.height),
+                        contentMode: .fit
+                    )
+                    .frame(maxWidth: 620, maxHeight: 440)
+
+                    if let selectedTile {
+                        HStack(spacing: MosaicDesign.standardSpacing) {
+                            ThumbnailView(
+                                state: inspectorModel.thumbnailState,
+                                emptySystemImage: "photo"
+                            )
+                            .frame(width: 96, height: 96)
+                            VStack(alignment: .leading, spacing: MosaicDesign.compactSpacing) {
+                                Text("Selected memory")
+                                    .font(.headline)
+                                Text(
+                                    "Tile \(selectedTile.coordinate.column + 1), " +
+                                        "\(selectedTile.coordinate.row + 1)"
+                                )
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(MosaicDesign.compactSpacing)
+                        .background(.background, in: RoundedRectangle(cornerRadius: MosaicDesign.cornerRadius))
+                        .accessibilityElement(children: .contain)
+                    }
+
+                    Button("Continue to export") {
+                        Task { await session.move(to: .export) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(MosaicDesign.accent)
+                    .disabled(previewModel.refreshStatus != nil)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(MosaicDesign.accent)
+            } else {
+                StepCard(
+                    title: "Preview required",
+                    detail: "Create the mosaic preview before opening the editor.",
+                    actionTitle: "Create preview"
+                ) {
+                    await session.move(to: .preview)
+                }
             }
-        } else {
-            StepCard(
-                title: "Preview required",
-                detail: "Create the mosaic preview before opening the editor.",
-                actionTitle: "Create preview"
-            ) {
-                await session.move(to: .preview)
+        }
+        .onDisappear { previewModel.cancel() }
+    }
+
+    private func applyLikeness() {
+        guard likeness != session.workflow.project.recipe.likeness else { return }
+        Task {
+            let saved = await session.setLikeness(likeness)
+            guard saved else {
+                likeness = session.workflow.project.recipe.likeness
+                return
             }
+            await previewModel.rerender(project: session.workflow.project)
         }
     }
 }

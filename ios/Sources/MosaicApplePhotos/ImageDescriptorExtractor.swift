@@ -333,4 +333,34 @@ extension ApplePhotoPreviewAssignmentService: MosaicPreviewGenerating {
             tiles: result.assignment.tiles
         )
     }
+
+    public func renderPreview(
+        for project: MosaicProject,
+        tiles: [MosaicAssignedTile],
+        progress: @escaping @Sendable (MosaicPreviewGenerationStatus) -> Void
+    ) async throws -> MosaicPreviewOutput {
+        let assignment = MosaicPreviewAssignment(
+            engineVersion: project.recipe.engineVersion,
+            tiles: tiles
+        )
+        let image = try await renderer.render(
+            project: project,
+            assignment: assignment,
+            loader: loader
+        ) { value in
+            progress(.init(
+                stage: .renderingMosaic,
+                completed: value.completed,
+                total: value.total
+            ))
+        }
+        return .init(
+            data: image.data,
+            width: image.width,
+            height: image.height,
+            columns: image.columns,
+            rows: image.rows,
+            tiles: tiles
+        )
+    }
 }

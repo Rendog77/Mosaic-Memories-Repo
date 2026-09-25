@@ -90,6 +90,22 @@ public final class CreationSession: ObservableObject {
         }
     }
 
+    @discardableResult
+    public func setLikeness(_ likeness: Double) async -> Bool {
+        let previousWorkflow = workflow
+        do {
+            try workflow.setLikeness(likeness)
+        } catch {
+            message = "Choose a likeness value between Photo Detail and Hero Likeness."
+            return false
+        }
+        guard await persist() else {
+            workflow = previousWorkflow
+            return false
+        }
+        return true
+    }
+
     public func requestHeroSelection() async {
         photoSelectionState = .selectingHero
         message = nil

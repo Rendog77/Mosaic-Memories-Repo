@@ -149,6 +149,7 @@ final class ImageDescriptorExtractorTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let red = try makePNG(width: 1, height: 1, pixels: [(255, 0, 0, 255)])
+        let blue = try makePNG(width: 1, height: 1, pixels: [(0, 0, 255, 255)])
         let hero = AssetReference(id: "hero", origin: .testFixture)
         let source = AssetReference(id: "source", origin: .testFixture)
         let project = MosaicProject(
@@ -157,7 +158,7 @@ final class ImageDescriptorExtractorTests: XCTestCase {
             sourcesConfirmed: true,
             recipe: .init(columns: 1, repeatWindow: 0)
         )
-        let loader = DescriptorLoaderStub(dataByID: ["hero": red, "source": red])
+        let loader = DescriptorLoaderStub(dataByID: ["hero": red, "source": blue])
         let cache = JSONPreviewAssignmentCache(directory: directory)
         let service = ApplePhotoPreviewAssignmentService(
             loader: loader,
@@ -167,6 +168,12 @@ final class ImageDescriptorExtractorTests: XCTestCase {
 
         let generated = try await service.preview(for: project)
         let cached = try await service.preview(for: project)
+        var adjustedProject = project
+        adjustedProject.recipe.likeness = 1
+        let refreshed = try await service.renderPreview(
+            for: adjustedProject,
+            tiles: generated.assignment.tiles
+        ) { _ in }
 
         XCTAssertEqual(generated.assignmentOrigin, .generatedAndCached)
         XCTAssertEqual(cached.assignmentOrigin, .cache)
@@ -174,6 +181,8 @@ final class ImageDescriptorExtractorTests: XCTestCase {
         XCTAssertEqual(generated.image.columns, 1)
         XCTAssertEqual(generated.image.rows, 1)
         XCTAssertFalse(generated.image.data.isEmpty)
+        XCTAssertEqual(refreshed.tiles, generated.assignment.tiles)
+        XCTAssertNotEqual(refreshed.data, generated.image.data)
     }
 
     func testInvalidImageDataIsRejected() {

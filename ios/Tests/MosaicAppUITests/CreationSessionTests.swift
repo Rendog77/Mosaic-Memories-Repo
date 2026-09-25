@@ -329,4 +329,32 @@ final class CreationSessionTests: XCTestCase {
         XCTAssertNil(session.workflow.project.heroCrop)
         XCTAssertEqual(session.message, "Changes could not be saved. Please try again.")
     }
+
+    func testLikenessChangePersists() async {
+        let project = MosaicProject(recipe: .init(likeness: 0.5))
+        let store = InMemoryProjectStore()
+        let session = CreationSession(store: store, project: project, step: .edit)
+
+        let changed = await session.setLikeness(0.75)
+        let saved = try? await store.load(id: project.id)
+
+        XCTAssertTrue(changed)
+        XCTAssertEqual(session.workflow.project.recipe.likeness, 0.75)
+        XCTAssertEqual(saved?.recipe.likeness, 0.75)
+    }
+
+    func testLikenessChangeRollsBackWhenPersistenceFails() async {
+        let project = MosaicProject(recipe: .init(likeness: 0.5))
+        let session = CreationSession(
+            store: SaveFailingProjectStore(),
+            project: project,
+            step: .edit
+        )
+
+        let changed = await session.setLikeness(0.75)
+
+        XCTAssertFalse(changed)
+        XCTAssertEqual(session.workflow.project.recipe.likeness, 0.5)
+        XCTAssertEqual(session.message, "Changes could not be saved. Please try again.")
+    }
 }

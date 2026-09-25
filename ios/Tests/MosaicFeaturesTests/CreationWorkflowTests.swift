@@ -69,6 +69,18 @@ final class CreationWorkflowTests: XCTestCase {
         XCTAssertEqual(workflow.project.title, "Untitled Mosaic")
     }
 
+    func testLikenessIsValidatedAndUpdatesRecipe() throws {
+        var workflow = CreationWorkflow()
+
+        try workflow.setLikeness(0.8)
+
+        XCTAssertEqual(workflow.project.recipe.likeness, 0.8)
+        XCTAssertThrowsError(try workflow.setLikeness(-0.1))
+        XCTAssertThrowsError(try workflow.setLikeness(1.1))
+        XCTAssertThrowsError(try workflow.setLikeness(.nan))
+        XCTAssertEqual(workflow.project.recipe.likeness, 0.8)
+    }
+
     func testRemovingSourceReturnsToReviewAndUpdatesReadiness() throws {
         var workflow = CreationWorkflow()
         let sources = (0..<100).map { AssetReference(id: "source-\($0)", origin: .testFixture) }

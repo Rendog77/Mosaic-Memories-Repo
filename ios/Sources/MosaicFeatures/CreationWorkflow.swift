@@ -39,6 +39,14 @@ public struct CreationWorkflow: Equatable, Sendable {
         touch()
     }
 
+    public mutating func setLikeness(_ likeness: Double) throws {
+        guard likeness.isFinite, (0...1).contains(likeness) else {
+            throw CreationWorkflowError.invalidLikeness
+        }
+        project.recipe.likeness = likeness
+        touch()
+    }
+
     public mutating func confirmSources(_ sources: [AssetReference], minimum: Int = 100) throws {
         reviewSources(sources)
         try confirmReviewedSources(minimum: minimum)
@@ -96,4 +104,5 @@ public struct CreationWorkflow: Equatable, Sendable {
 
 public enum CreationWorkflowError: Error, Equatable {
     case insufficientSources(required: Int, actual: Int)
+    case invalidLikeness
 }

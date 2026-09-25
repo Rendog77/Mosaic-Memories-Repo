@@ -94,6 +94,22 @@ public protocol MosaicPreviewGenerating: Sendable {
         for project: MosaicProject,
         progress: @escaping @Sendable (MosaicPreviewGenerationStatus) -> Void
     ) async throws -> MosaicPreviewOutput
+
+    func renderPreview(
+        for project: MosaicProject,
+        tiles: [MosaicAssignedTile],
+        progress: @escaping @Sendable (MosaicPreviewGenerationStatus) -> Void
+    ) async throws -> MosaicPreviewOutput
+}
+
+public extension MosaicPreviewGenerating {
+    func renderPreview(
+        for project: MosaicProject,
+        tiles: [MosaicAssignedTile],
+        progress: @escaping @Sendable (MosaicPreviewGenerationStatus) -> Void
+    ) async throws -> MosaicPreviewOutput {
+        try await generatePreview(for: project, progress: progress)
+    }
 }
 
 public struct UnavailableMosaicPreviewGenerator: MosaicPreviewGenerating {
@@ -122,6 +138,8 @@ public enum MosaicPreviewViewState: Equatable, Sendable {
 @MainActor
 public final class MosaicPreviewViewModel: ObservableObject {
     @Published public private(set) var state: MosaicPreviewViewState = .idle
+    @Published public private(set) var refreshStatus: MosaicPreviewGenerationStatus?
+    @Published public private(set) var refreshMessage: String?
 
     private let generator: any MosaicPreviewGenerating
     private var generationTask: Task<MosaicPreviewOutput, Error>?
@@ -133,6 +151,7 @@ public final class MosaicPreviewViewModel: ObservableObject {
 
     public func load(project: MosaicProject) async {
         cancelActiveGeneration(updateState: false)
+        refreshMessage = nil
         let identifier = UUID()
         generationID = identifier
         state = .loading(.init(stage: .preparing, completed: 0, total: 1))
@@ -176,6 +195,56 @@ public final class MosaicPreviewViewModel: ObservableObject {
         }
     }
 
+    public func rerender(project: MosaicProject) async {
+        guard case .loaded(let existingOutput) = state else { return }
+        cancelActiveGeneration(updateState: false)
+        let identifier = UUID()
+        generationID = identifier
+        refreshMessage = nil
+        refreshStatus = .init(stage: .renderingMosaic, completed: 0, total: 1)
+        let generator = self.generator
+        let task = Task {
+            try await generator.renderPreview(
+                for: project,
+                tiles: existingOutput.tiles
+            ) { [weak self] progress in
+                Task { @MainActor in
+                    guard self?.generationID == identifier else { return }
+                    self?.refreshStatus = progress
+                }
+            }
+        }
+        generationTask = task
+
+        do {
+            let output = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
+            guard generationID == identifier else { return }
+            generationTask = nil
+            generationID = nil
+            refreshStatus = nil
+            guard output.isValid, output.tiles == existingOutput.tiles else {
+                refreshMessage = "The updated preview was invalid. Your previous preview is still available."
+                return
+            }
+            state = .loaded(output)
+        } catch is CancellationError {
+            guard generationID == identifier else { return }
+            generationTask = nil
+            generationID = nil
+            refreshStatus = nil
+        } catch {
+            guard generationID == identifier else { return }
+            generationTask = nil
+            generationID = nil
+            refreshStatus = nil
+            refreshMessage = "The likeness preview could not be updated. Your previous preview is still available."
+        }
+    }
+
     public func cancel() {
         cancelActiveGeneration(updateState: true)
     }
@@ -186,6 +255,7 @@ public final class MosaicPreviewViewModel: ObservableObject {
         generationTask?.cancel()
         generationTask = nil
         generationID = nil
+        refreshStatus = nil
         if updateState && wasLoading {
             state = .cancelled
         }

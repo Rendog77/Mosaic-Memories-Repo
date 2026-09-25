@@ -52,7 +52,7 @@ The sequencing rule is: **prove that people value the artwork, then prove that s
 
 ## Phase 5 — Complete the editing loop (weeks 8–11)
 
-**Status:** In progress. The generated preview now carries its deterministic tile map into an interactive editor with bounded zoom and pan, coordinate-based tile selection, a visible selection outline, and on-demand source-photo inspection.
+**Status:** In progress. The generated preview now carries its deterministic tile map into an interactive editor with bounded zoom and pan, coordinate-based tile selection, a visible selection outline, and on-demand source-photo inspection. The Photo Detail ↔ Hero Likeness control persists its recipe value and refreshes only compositing, preserving and reusing the existing deterministic tile assignment.
 
 - Add zoom, tile inspection, source detail, likeness/authenticity control, replace/pin, undo, and persistent edits.
 - Run moderated usability tests and accessibility checks.
