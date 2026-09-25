@@ -20,7 +20,7 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         XCTAssertTrue(confirmPhotos.isEnabled)
         confirmPhotos.tap()
 
-        let previewTitle = app.staticTexts["Your framed photo"]
+        let previewTitle = app.staticTexts["Your mosaic"]
         if !previewTitle.waitForExistence(timeout: 20) {
             attachPickerDiagnostics(from: app, name: "After confirming 100 source photos")
             XCTFail("A ready source set did not advance to preview")

@@ -10,7 +10,8 @@ struct MosaicMemoriesApp: App {
         WindowGroup {
             PhotosPickerRootView(
                 store: environment.projectStore,
-                assetStore: environment.assetStore
+                assetStore: environment.assetStore,
+                previewGenerator: environment.previewService
             )
             .task {
                 await runPersistenceProbeIfRequested()

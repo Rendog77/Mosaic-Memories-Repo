@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 import ImageIO
 import MosaicCore
+import MosaicAppUI
 import MosaicFeatures
 import MosaicPersistence
 
@@ -294,4 +295,39 @@ public enum ImageDescriptorError: Error, Equatable, Sendable {
     case invalidColumnCount
     case missingHero
     case sourcesNotConfirmed
+}
+
+extension ApplePhotoPreviewAssignmentService: MosaicPreviewGenerating {
+    public func generatePreview(
+        for project: MosaicProject,
+        progress: @escaping @Sendable (MosaicPreviewGenerationStatus) -> Void
+    ) async throws -> MosaicPreviewOutput {
+        let result = try await preview(for: project) { update in
+            switch update {
+            case .descriptors(let value):
+                progress(.init(
+                    stage: .analyzingPhotos,
+                    completed: value.completed,
+                    total: value.total
+                ))
+            case .assignment(let value):
+                progress(.init(
+                    stage: .arrangingTiles,
+                    completed: value.completed,
+                    total: value.total
+                ))
+            case .rendering(let value):
+                progress(.init(
+                    stage: .renderingMosaic,
+                    completed: value.completed,
+                    total: value.total
+                ))
+            }
+        }
+        return .init(
+            data: result.image.data,
+            width: result.image.width,
+            height: result.image.height
+        )
+    }
 }

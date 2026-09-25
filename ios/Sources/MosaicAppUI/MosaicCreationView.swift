@@ -12,6 +12,7 @@ public struct MosaicCreationView: View {
     @ObservedObject private var session: CreationSession
     @StateObject private var heroModel: HeroPhotoViewModel
     @StateObject private var sourceModel: SourceReviewViewModel
+    @StateObject private var previewModel: MosaicPreviewViewModel
     private let onClose: () -> Void
     private let onChooseHero: (() -> Void)?
     private let onChooseSources: (() -> Void)?
@@ -20,6 +21,7 @@ public struct MosaicCreationView: View {
     public init(
         session: CreationSession,
         assetLoader: any PhotoAssetLoading = UnavailablePhotoAssetLoader(),
+        previewGenerator: any MosaicPreviewGenerating = UnavailableMosaicPreviewGenerator(),
         onChooseHero: (() -> Void)? = nil,
         onChooseSources: (() -> Void)? = nil,
         onRemoveSource: (@MainActor (AssetReference) async -> Void)? = nil,
@@ -33,6 +35,7 @@ public struct MosaicCreationView: View {
                 loader: assetLoader
             )
         )
+        _previewModel = StateObject(wrappedValue: MosaicPreviewViewModel(generator: previewGenerator))
         self.onChooseHero = onChooseHero
         self.onChooseSources = onChooseSources
         self.onRemoveSource = onRemoveSource
@@ -89,7 +92,7 @@ public struct MosaicCreationView: View {
                 onRemoveSource: onRemoveSource
             )
         case .preview:
-            PreviewPreparationScreen(session: session, heroModel: heroModel)
+            PreviewPreparationScreen(session: session, model: previewModel)
         case .edit:
             StepCard(
                 title: "Make it yours",
@@ -112,30 +115,107 @@ public struct MosaicCreationView: View {
 
 private struct PreviewPreparationScreen: View {
     @ObservedObject var session: CreationSession
-    @ObservedObject var heroModel: HeroPhotoViewModel
+    @ObservedObject var model: MosaicPreviewViewModel
 
     var body: some View {
         VStack(spacing: MosaicDesign.standardSpacing) {
-            Text("Your framed photo")
+            Text("Your mosaic")
                 .font(.title.bold())
-            ThumbnailView(state: heroModel.thumbnailState, emptySystemImage: "photo")
-                .frame(maxWidth: 420, maxHeight: 320)
-                .aspectRatio(4 / 3, contentMode: .fit)
-                .accessibilityLabel("Hero photo with selected framing")
-            StepCard(
-                title: "Create your mosaic",
-                detail: "The preview engine will build the first recognisable composition from this framing.",
-                actionTitle: "Continue to editor"
-            ) {
-                await session.move(to: .edit)
+            previewContent
+                .frame(maxWidth: 560, maxHeight: 440)
+            if case .loaded = model.state {
+                Button("Continue to editor") {
+                    Task { await session.move(to: .edit) }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(MosaicDesign.accent)
+                .controlSize(.large)
             }
         }
-        .task(id: session.workflow.project.heroCrop) {
-            let project = session.workflow.project
-            if heroModel.reference != project.hero || heroModel.crop != project.heroCrop {
-                await heroModel.load(project: project)
-            }
+        .task(id: session.workflow.project) {
+            await model.load(project: session.workflow.project)
         }
+        .onDisappear { model.cancel() }
+    }
+
+    @ViewBuilder
+    private var previewContent: some View {
+        switch model.state {
+        case .idle:
+            ProgressView("Preparing preview")
+        case .loading(let status):
+            VStack(spacing: MosaicDesign.compactSpacing) {
+                ProgressView(value: status.fractionCompleted)
+                    .frame(maxWidth: 320)
+                Text(status.stage.title)
+                    .font(.headline)
+                Text("\(status.completed) of \(status.total)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button("Cancel", role: .cancel) { model.cancel() }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(status.stage.title)
+            .accessibilityValue("\(Int((status.fractionCompleted * 100).rounded())) percent")
+        case .loaded(let preview):
+            previewImage(data: preview.data)
+                .aspectRatio(CGFloat(preview.width) / CGFloat(preview.height), contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: MosaicDesign.cornerRadius))
+                .accessibilityLabel("Generated mosaic preview")
+        case .cancelled:
+            retryCard(
+                title: "Preview cancelled",
+                detail: "Your selected photos are unchanged. Create the preview whenever you are ready."
+            )
+        case .failed(let message):
+            retryCard(title: "Preview unavailable", detail: message)
+        }
+    }
+
+    @ViewBuilder
+    private func retryCard(title: String, detail: String) -> some View {
+        VStack(spacing: MosaicDesign.compactSpacing) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.title)
+                .foregroundStyle(.orange)
+            Text(title).font(.headline)
+            Text(detail)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Try again") {
+                Task { await model.load(project: session.workflow.project) }
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(MosaicDesign.standardSpacing)
+    }
+
+    @ViewBuilder
+    private func previewImage(data: Data) -> some View {
+#if canImport(UIKit)
+        if let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+        } else {
+            invalidPreview
+        }
+#elseif canImport(AppKit)
+        if let image = NSImage(data: data) {
+            Image(nsImage: image)
+                .resizable()
+        } else {
+            invalidPreview
+        }
+#else
+        invalidPreview
+#endif
+    }
+
+    private var invalidPreview: some View {
+        Image(systemName: "exclamationmark.triangle")
+            .foregroundStyle(.orange)
+            .accessibilityLabel("Preview image unavailable")
     }
 }
 
