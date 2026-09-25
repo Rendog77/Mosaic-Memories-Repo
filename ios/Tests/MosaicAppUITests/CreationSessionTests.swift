@@ -341,6 +341,8 @@ final class CreationSessionTests: XCTestCase {
         XCTAssertTrue(changed)
         XCTAssertEqual(session.workflow.project.recipe.likeness, 0.75)
         XCTAssertEqual(saved?.recipe.likeness, 0.75)
+        XCTAssertTrue(session.canUndoEdit)
+        XCTAssertFalse(session.canRedoEdit)
     }
 
     func testLikenessChangeRollsBackWhenPersistenceFails() async {
@@ -376,14 +378,29 @@ final class CreationSessionTests: XCTestCase {
             replacing: original
         )
         let savedReplacement = try? await store.load(id: project.id)
-        let undone = await session.undoLastTileReplacement()
+        let undone = await session.undoLastEdit()
         let savedUndo = try? await store.load(id: project.id)
 
         XCTAssertTrue(replaced)
         XCTAssertEqual(savedReplacement?.recipe.replacements[coordinate], replacement)
-        XCTAssertEqual(undone, .init(coordinate: coordinate, source: original))
+        XCTAssertEqual(
+            undone,
+            .tileReplacement(.init(coordinate: coordinate, source: original))
+        )
         XCTAssertNil(savedUndo?.recipe.replacements[coordinate])
-        XCTAssertFalse(session.canUndoTileReplacement)
+        XCTAssertFalse(session.canUndoEdit)
+        XCTAssertTrue(session.canRedoEdit)
+
+        let redone = await session.redoLastEdit()
+        let savedRedo = try? await store.load(id: project.id)
+
+        XCTAssertEqual(
+            redone,
+            .tileReplacement(.init(coordinate: coordinate, source: replacement))
+        )
+        XCTAssertEqual(savedRedo?.recipe.replacements[coordinate], replacement)
+        XCTAssertTrue(session.canUndoEdit)
+        XCTAssertFalse(session.canRedoEdit)
     }
 
     func testTileReplacementRollsBackWhenPersistenceFails() async {
@@ -409,6 +426,69 @@ final class CreationSessionTests: XCTestCase {
 
         XCTAssertFalse(replaced)
         XCTAssertNil(session.workflow.project.recipe.replacements[coordinate])
-        XCTAssertFalse(session.canUndoTileReplacement)
+        XCTAssertFalse(session.canUndoEdit)
+        XCTAssertFalse(session.canRedoEdit)
+    }
+
+    func testLikenessAndReplacementShareOrderedUndoRedoHistory() async {
+        let original = AssetReference(id: "original", origin: .testFixture)
+        let replacement = AssetReference(id: "replacement", origin: .testFixture)
+        let coordinate = TileCoordinate(column: 0, row: 0)
+        let project = MosaicProject(
+            sources: [original, replacement],
+            sourcesConfirmed: true,
+            recipe: .init(columns: 1, likeness: 0.5)
+        )
+        let store = InMemoryProjectStore()
+        let session = CreationSession(store: store, project: project, step: .edit)
+
+        let changedLikeness = await session.setLikeness(0.8)
+        let replaced = await session.replaceTile(
+            at: coordinate,
+            with: replacement,
+            replacing: original
+        )
+        XCTAssertTrue(changedLikeness)
+        XCTAssertTrue(replaced)
+
+        let firstUndo = await session.undoLastEdit()
+        let secondUndo = await session.undoLastEdit()
+        XCTAssertEqual(
+            firstUndo,
+            .tileReplacement(.init(coordinate: coordinate, source: original))
+        )
+        XCTAssertEqual(secondUndo, .likeness(0.5))
+        XCTAssertFalse(session.canUndoEdit)
+        XCTAssertTrue(session.canRedoEdit)
+
+        let firstRedo = await session.redoLastEdit()
+        let secondRedo = await session.redoLastEdit()
+        XCTAssertEqual(firstRedo, .likeness(0.8))
+        XCTAssertEqual(
+            secondRedo,
+            .tileReplacement(.init(coordinate: coordinate, source: replacement))
+        )
+
+        let saved = try? await store.load(id: project.id)
+        XCTAssertEqual(saved?.recipe.likeness, 0.8)
+        XCTAssertEqual(saved?.recipe.replacements[coordinate], replacement)
+        XCTAssertTrue(session.canUndoEdit)
+        XCTAssertFalse(session.canRedoEdit)
+    }
+
+    func testRollingBackANewEditDoesNotLeaveRedoHistory() async {
+        let project = MosaicProject(recipe: .init(likeness: 0.5))
+        let store = InMemoryProjectStore()
+        let session = CreationSession(store: store, project: project, step: .edit)
+
+        let changed = await session.setLikeness(0.8)
+        let rolledBack = await session.rollbackLastEdit()
+        let saved = try? await store.load(id: project.id)
+
+        XCTAssertTrue(changed)
+        XCTAssertEqual(rolledBack, .likeness(0.5))
+        XCTAssertEqual(saved?.recipe.likeness, 0.5)
+        XCTAssertFalse(session.canUndoEdit)
+        XCTAssertFalse(session.canRedoEdit)
     }
 }

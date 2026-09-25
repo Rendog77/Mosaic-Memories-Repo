@@ -24,10 +24,20 @@ public struct TileReplacementChange: Equatable, Sendable {
     }
 }
 
-private struct TileReplacementUndo: Sendable {
-    let coordinate: TileCoordinate
-    let previousOverride: AssetReference?
-    let previousSource: AssetReference
+public enum MosaicEditChange: Equatable, Sendable {
+    case likeness(Double)
+    case tileReplacement(TileReplacementChange)
+}
+
+private enum MosaicEditCommand: Sendable {
+    case likeness(before: Double, after: Double)
+    case tileReplacement(
+        coordinate: TileCoordinate,
+        beforeOverride: AssetReference?,
+        afterOverride: AssetReference,
+        beforeSource: AssetReference,
+        afterSource: AssetReference
+    )
 }
 
 @MainActor
@@ -39,7 +49,8 @@ public final class CreationSession: ObservableObject {
     @Published public private(set) var photoSelectionState: PhotoSelectionState = .idle
     @Published public private(set) var missingAssetIDs: Set<String> = []
     @Published public private(set) var isHeroMissing = false
-    @Published public private(set) var canUndoTileReplacement = false
+    @Published public private(set) var canUndoEdit = false
+    @Published public private(set) var canRedoEdit = false
 
     private let store: any ProjectStoring
     private let analytics: any AnalyticsRecording
@@ -47,7 +58,8 @@ public final class CreationSession: ObservableObject {
     private let sourceSelector: any SourcePhotosSelecting
     private let sourceValidator: SourceSelectionValidator
     private let assetChecker: (any PhotoAssetChecking)?
-    private var tileReplacementUndoStack: [TileReplacementUndo] = []
+    private var editUndoStack: [MosaicEditCommand] = []
+    private var editRedoStack: [MosaicEditCommand] = []
 
     public init(
         store: any ProjectStoring,
@@ -69,7 +81,7 @@ public final class CreationSession: ObservableObject {
     }
 
     public func startNewProject() async {
-        clearTileReplacementUndo()
+        clearEditHistory()
         missingAssetIDs = []
         isHeroMissing = false
         workflow = CreationWorkflow()
@@ -80,7 +92,7 @@ public final class CreationSession: ObservableObject {
     }
 
     public func restoreMostRecentProject() async {
-        clearTileReplacementUndo()
+        clearEditHistory()
         do {
             let projects = try await store.list()
             if let project = projects.first {
@@ -95,7 +107,7 @@ public final class CreationSession: ObservableObject {
     }
 
     public func selectHero(_ reference: AssetReference) async {
-        clearTileReplacementUndo()
+        clearEditHistory()
         missingAssetIDs = []
         isHeroMissing = false
         workflow.selectHero(reference)
@@ -109,12 +121,14 @@ public final class CreationSession: ObservableObject {
         if !(await persist()) {
             workflow = previousWorkflow
         } else {
-            clearTileReplacementUndo()
+            clearEditHistory()
         }
     }
 
     @discardableResult
     public func setLikeness(_ likeness: Double) async -> Bool {
+        let previousLikeness = workflow.project.recipe.likeness
+        guard likeness != previousLikeness else { return true }
         let previousWorkflow = workflow
         do {
             try workflow.setLikeness(likeness)
@@ -126,6 +140,7 @@ public final class CreationSession: ObservableObject {
             workflow = previousWorkflow
             return false
         }
+        record(.likeness(before: previousLikeness, after: likeness))
         return true
     }
 
@@ -137,6 +152,7 @@ public final class CreationSession: ObservableObject {
     ) async -> Bool {
         let previousWorkflow = workflow
         let previousOverride = workflow.project.recipe.replacements[coordinate]
+        guard previousOverride != source || currentSource != source else { return true }
         do {
             try workflow.setTileReplacement(source, at: coordinate)
         } catch {
@@ -147,33 +163,63 @@ public final class CreationSession: ObservableObject {
             workflow = previousWorkflow
             return false
         }
-        tileReplacementUndoStack.append(
-            .init(
+        record(
+            .tileReplacement(
                 coordinate: coordinate,
-                previousOverride: previousOverride,
-                previousSource: currentSource
+                beforeOverride: previousOverride,
+                afterOverride: source,
+                beforeSource: currentSource,
+                afterSource: source
             )
         )
-        canUndoTileReplacement = true
         return true
     }
 
-    public func undoLastTileReplacement() async -> TileReplacementChange? {
-        guard let undo = tileReplacementUndoStack.last else { return nil }
+    public func undoLastEdit() async -> MosaicEditChange? {
+        guard let command = editUndoStack.last else { return nil }
         let previousWorkflow = workflow
         do {
-            try workflow.setTileReplacement(undo.previousOverride, at: undo.coordinate)
+            let change = try apply(command, forward: false)
+            guard await persist() else {
+                workflow = previousWorkflow
+                return nil
+            }
+            editUndoStack.removeLast()
+            editRedoStack.append(command)
+            updateEditHistoryAvailability()
+            return change
         } catch {
-            message = "That tile change could not be undone."
-            return nil
-        }
-        guard await persist() else {
             workflow = previousWorkflow
+            message = "That edit could not be undone."
             return nil
         }
-        tileReplacementUndoStack.removeLast()
-        canUndoTileReplacement = !tileReplacementUndoStack.isEmpty
-        return .init(coordinate: undo.coordinate, source: undo.previousSource)
+    }
+
+    public func redoLastEdit() async -> MosaicEditChange? {
+        guard let command = editRedoStack.last else { return nil }
+        let previousWorkflow = workflow
+        do {
+            let change = try apply(command, forward: true)
+            guard await persist() else {
+                workflow = previousWorkflow
+                return nil
+            }
+            editRedoStack.removeLast()
+            editUndoStack.append(command)
+            updateEditHistoryAvailability()
+            return change
+        } catch {
+            workflow = previousWorkflow
+            message = "That edit could not be redone."
+            return nil
+        }
+    }
+
+    public func rollbackLastEdit() async -> MosaicEditChange? {
+        guard let change = await undoLastEdit() else { return nil }
+        editRedoStack = []
+        updateEditHistoryAvailability()
+        return change
     }
 
     public func requestHeroSelection() async {
@@ -194,7 +240,7 @@ public final class CreationSession: ObservableObject {
     }
 
     public func reviewSources(_ references: [AssetReference]) async {
-        clearTileReplacementUndo()
+        clearEditHistory()
         missingAssetIDs = []
         workflow.reviewSources(references)
         await persist()
@@ -250,7 +296,7 @@ public final class CreationSession: ObservableObject {
             workflow = originalWorkflow
             return false
         }
-        clearTileReplacementUndo()
+        clearEditHistory()
         missingAssetIDs.remove(id)
         return true
     }
@@ -337,9 +383,41 @@ public final class CreationSession: ObservableObject {
         }
     }
 
-    private func clearTileReplacementUndo() {
-        tileReplacementUndoStack = []
-        canUndoTileReplacement = false
+    private func record(_ command: MosaicEditCommand) {
+        editUndoStack.append(command)
+        editRedoStack = []
+        updateEditHistoryAvailability()
+    }
+
+    private func apply(_ command: MosaicEditCommand, forward: Bool) throws -> MosaicEditChange {
+        switch command {
+        case .likeness(let before, let after):
+            let value = forward ? after : before
+            try workflow.setLikeness(value)
+            return .likeness(value)
+        case .tileReplacement(
+            let coordinate,
+            let beforeOverride,
+            let afterOverride,
+            let beforeSource,
+            let afterSource
+        ):
+            let override = forward ? afterOverride : beforeOverride
+            let source = forward ? afterSource : beforeSource
+            try workflow.setTileReplacement(override, at: coordinate)
+            return .tileReplacement(.init(coordinate: coordinate, source: source))
+        }
+    }
+
+    private func clearEditHistory() {
+        editUndoStack = []
+        editRedoStack = []
+        updateEditHistoryAvailability()
+    }
+
+    private func updateEditHistoryAvailability() {
+        canUndoEdit = !editUndoStack.isEmpty
+        canRedoEdit = !editRedoStack.isEmpty
     }
 
     private func handleSelectionError(_ error: PhotoSelectionError) {

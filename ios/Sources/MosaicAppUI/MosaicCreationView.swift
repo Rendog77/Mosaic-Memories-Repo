@@ -226,11 +226,18 @@ private struct MosaicEditorScreen: View {
                         .accessibilityElement(children: .contain)
                     }
 
-                    if session.canUndoTileReplacement {
-                        Button("Undo last replacement", systemImage: "arrow.uturn.backward") {
-                            undoLastReplacement()
+                    HStack(spacing: MosaicDesign.standardSpacing) {
+                        Button("Undo", systemImage: "arrow.uturn.backward") {
+                            undoEdit()
                         }
-                        .disabled(isEditBusy)
+                        .keyboardShortcut("z", modifiers: .command)
+                        .disabled(isEditBusy || !session.canUndoEdit)
+
+                        Button("Redo", systemImage: "arrow.uturn.forward") {
+                            redoEdit()
+                        }
+                        .keyboardShortcut("z", modifiers: [.command, .shift])
+                        .disabled(isEditBusy || !session.canRedoEdit)
                     }
 
                     Button("Continue to export") {
@@ -273,7 +280,10 @@ private struct MosaicEditorScreen: View {
                 likeness = session.workflow.project.recipe.likeness
                 return
             }
-            await previewModel.rerender(project: session.workflow.project)
+            let rendered = await render(.likeness(likeness))
+            guard !rendered else { return }
+            _ = await session.rollbackLastEdit()
+            likeness = session.workflow.project.recipe.likeness
         }
     }
 
@@ -290,59 +300,73 @@ private struct MosaicEditorScreen: View {
                 replacing: selectedTile.source
             )
             guard saved else { return }
+            let rendered = await render(
+                .tileReplacement(.init(coordinate: selectedTile.coordinate, source: source))
+            )
+            guard rendered else {
+                _ = await session.rollbackLastEdit()
+                return
+            }
+        }
+    }
+
+    private func undoEdit() {
+        guard !isEditBusy else { return }
+        isApplyingEdit = true
+        Task {
+            defer { isApplyingEdit = false }
+            guard let change = await session.undoLastEdit() else { return }
+            let rendered = await render(change)
+            guard rendered else {
+                _ = await session.redoLastEdit()
+                likeness = session.workflow.project.recipe.likeness
+                return
+            }
+        }
+    }
+
+    private func redoEdit() {
+        guard !isEditBusy else { return }
+        isApplyingEdit = true
+        Task {
+            defer { isApplyingEdit = false }
+            guard let change = await session.redoLastEdit() else { return }
+            let rendered = await render(change)
+            guard rendered else {
+                _ = await session.undoLastEdit()
+                likeness = session.workflow.project.recipe.likeness
+                return
+            }
+        }
+    }
+
+    private func render(_ change: MosaicEditChange) async -> Bool {
+        switch change {
+        case .likeness(let value):
+            likeness = value
+            return await previewModel.rerender(
+                project: session.workflow.project,
+                tiles: currentTiles
+            )
+        case .tileReplacement(let replacement):
             let updatedTiles = replacing(
-                selectedTile.coordinate,
-                with: source,
+                replacement.coordinate,
+                with: replacement.source,
                 in: currentTiles
             )
             let rendered = await previewModel.rerender(
                 project: session.workflow.project,
                 tiles: updatedTiles
             )
-            guard rendered else {
-                _ = await session.undoLastTileReplacement()
-                return
-            }
-            self.selectedTile = .init(coordinate: selectedTile.coordinate, source: source)
-            inspectorModel.clear()
-            await inspectorModel.load(source, maximumPixelSize: 640)
-        }
-    }
-
-    private func undoLastReplacement() {
-        guard !isEditBusy else { return }
-        isApplyingEdit = true
-        Task {
-            defer { isApplyingEdit = false }
-            let tilesBeforeUndo = currentTiles
-            guard let change = await session.undoLastTileReplacement() else { return }
-            let currentSource = tilesBeforeUndo.first {
-                $0.coordinate == change.coordinate
-            }?.source
-            let updatedTiles = replacing(
-                change.coordinate,
-                with: change.source,
-                in: tilesBeforeUndo
-            )
-            let rendered = await previewModel.rerender(
-                project: session.workflow.project,
-                tiles: updatedTiles
-            )
-            guard rendered else {
-                if let currentSource {
-                    _ = await session.replaceTile(
-                        at: change.coordinate,
-                        with: currentSource,
-                        replacing: change.source
-                    )
-                }
-                return
-            }
-            if selectedTile?.coordinate == change.coordinate {
-                selectedTile = .init(coordinate: change.coordinate, source: change.source)
+            if rendered, selectedTile?.coordinate == replacement.coordinate {
+                selectedTile = .init(
+                    coordinate: replacement.coordinate,
+                    source: replacement.source
+                )
                 inspectorModel.clear()
-                await inspectorModel.load(change.source, maximumPixelSize: 640)
+                await inspectorModel.load(replacement.source, maximumPixelSize: 640)
             }
+            return rendered
         }
     }
 
