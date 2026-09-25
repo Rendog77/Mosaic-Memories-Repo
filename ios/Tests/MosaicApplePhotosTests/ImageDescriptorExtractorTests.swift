@@ -145,7 +145,7 @@ final class ImageDescriptorExtractorTests: XCTestCase {
         ])
     }
 
-    func testServiceFeedsRealDescriptorsThroughCacheCoordinator() async throws {
+    func testServiceBuildsRenderedPreviewAndReusesCachedAssignment() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let red = try makePNG(width: 1, height: 1, pixels: [(255, 0, 0, 255)])
@@ -161,15 +161,19 @@ final class ImageDescriptorExtractorTests: XCTestCase {
         let cache = JSONPreviewAssignmentCache(directory: directory)
         let service = ApplePhotoPreviewAssignmentService(
             loader: loader,
-            generator: CachedPreviewAssignmentGenerator(cache: cache)
+            generator: CachedPreviewAssignmentGenerator(cache: cache),
+            renderer: .init(maximumDimension: 2)
         )
 
-        let generated = try await service.assignment(for: project)
-        let cached = try await service.assignment(for: project)
+        let generated = try await service.preview(for: project)
+        let cached = try await service.preview(for: project)
 
-        XCTAssertEqual(generated.origin, .generatedAndCached)
-        XCTAssertEqual(cached.origin, .cache)
+        XCTAssertEqual(generated.assignmentOrigin, .generatedAndCached)
+        XCTAssertEqual(cached.assignmentOrigin, .cache)
         XCTAssertEqual(cached.assignment, generated.assignment)
+        XCTAssertEqual(generated.image.columns, 1)
+        XCTAssertEqual(generated.image.rows, 1)
+        XCTAssertFalse(generated.image.data.isEmpty)
     }
 
     func testInvalidImageDataIsRejected() {

@@ -18,6 +18,23 @@ public struct PhotoPreviewDescriptorSet: Equatable, Sendable {
 public enum PhotoPreviewGenerationProgress: Equatable, Sendable {
     case descriptors(MosaicProgress)
     case assignment(MosaicProgress)
+    case rendering(MosaicProgress)
+}
+
+public struct PhotoPreviewResult: Equatable, Sendable {
+    public let image: MosaicPreviewImage
+    public let assignment: MosaicPreviewAssignment
+    public let assignmentOrigin: PreviewAssignmentOrigin
+
+    public init(
+        image: MosaicPreviewImage,
+        assignment: MosaicPreviewAssignment,
+        assignmentOrigin: PreviewAssignmentOrigin
+    ) {
+        self.image = image
+        self.assignment = assignment
+        self.assignmentOrigin = assignmentOrigin
+    }
 }
 
 public struct AppleImageDescriptorExtractor: Sendable {
@@ -224,15 +241,18 @@ public struct ApplePhotoPreviewAssignmentService: Sendable {
     private let loader: any PhotoAssetLoading
     private let builder: PhotoPreviewDescriptorBuilder
     private let generator: CachedPreviewAssignmentGenerator
+    private let renderer: AppleMosaicPreviewRenderer
 
     public init(
         loader: any PhotoAssetLoading,
         generator: CachedPreviewAssignmentGenerator,
-        builder: PhotoPreviewDescriptorBuilder = .init()
+        builder: PhotoPreviewDescriptorBuilder = .init(),
+        renderer: AppleMosaicPreviewRenderer = .init()
     ) {
         self.loader = loader
         self.generator = generator
         self.builder = builder
+        self.renderer = renderer
     }
 
     public func assignment(
@@ -248,6 +268,23 @@ public struct ApplePhotoPreviewAssignmentService: Sendable {
             targets: descriptors.targets,
             sources: descriptors.sources
         ) { progress(.assignment($0)) }
+    }
+
+    public func preview(
+        for project: MosaicProject,
+        progress: @escaping @Sendable (PhotoPreviewGenerationProgress) -> Void = { _ in }
+    ) async throws -> PhotoPreviewResult {
+        let assignmentResult = try await assignment(for: project, progress: progress)
+        let image = try await renderer.render(
+            project: project,
+            assignment: assignmentResult.assignment,
+            loader: loader
+        ) { progress(.rendering($0)) }
+        return .init(
+            image: image,
+            assignment: assignmentResult.assignment,
+            assignmentOrigin: assignmentResult.origin
+        )
     }
 }
 
