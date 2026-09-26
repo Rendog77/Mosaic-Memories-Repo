@@ -145,6 +145,12 @@ private struct MosaicExportScreen: View {
     @ObservedObject var model: MosaicExportViewModel
     @State private var formatChoice = FormatChoice.jpeg
     @State private var sizeChoice = SizeChoice.large
+    @State private var shareFeedback: String?
+    @State private var shareFailed = false
+#if os(iOS)
+    @State private var isPresentingShareSheet = false
+    @State private var shareFileURL: URL?
+#endif
 
     var body: some View {
         ScrollView {
@@ -176,6 +182,25 @@ private struct MosaicExportScreen: View {
         }
         .accessibilityIdentifier("mosaic.export.scroll")
         .onDisappear { model.cancel(updateState: false) }
+#if os(iOS)
+        .sheet(isPresented: $isPresentingShareSheet) {
+            if let shareFileURL {
+                MosaicShareSheet(fileURL: shareFileURL) { completed, error in
+                    isPresentingShareSheet = false
+                    if error != nil {
+                        shareFailed = true
+                        shareFeedback = "Sharing could not be completed. Your generated image is still ready to try again."
+                    } else if completed {
+                        shareFailed = false
+                        shareFeedback = "The image was handed off successfully."
+                    } else {
+                        shareFailed = false
+                        shareFeedback = "The share sheet was closed. Your generated image is still ready."
+                    }
+                }
+            }
+        }
+#endif
     }
 
     private var exportOptions: some View {
@@ -244,6 +269,14 @@ private struct MosaicExportScreen: View {
                 Text("The image is ready for the save and share step.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                shareButton(for: result)
+                if let shareFeedback {
+                    Text(shareFeedback)
+                        .font(.footnote)
+                        .foregroundStyle(shareFailed ? Color.red : Color.secondary)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("mosaic.export.share-feedback")
+                }
                 createButton("Create again")
                 Button("Start another mosaic") {
                     model.reset()
@@ -289,6 +322,29 @@ private struct MosaicExportScreen: View {
             .accessibilityIdentifier("mosaic.export.create")
     }
 
+    @ViewBuilder
+    private func shareButton(for result: MosaicExportResult) -> some View {
+#if os(iOS)
+        Button("Save or share image", systemImage: "square.and.arrow.up") {
+            shareFeedback = nil
+            shareFailed = false
+            shareFileURL = result.url
+            isPresentingShareSheet = true
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(MosaicDesign.accent)
+        .accessibilityHint("Opens system destinations including Photos, Files, and AirDrop")
+        .accessibilityIdentifier("mosaic.export.share")
+#else
+        ShareLink(item: result.url) {
+            Label("Save or share image", systemImage: "square.and.arrow.up")
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(MosaicDesign.accent)
+        .accessibilityIdentifier("mosaic.export.share")
+#endif
+    }
+
     private var previewTiles: [MosaicAssignedTile]? {
         guard case .loaded(let preview) = previewModel.state else { return nil }
         return preview.tiles
@@ -306,6 +362,8 @@ private struct MosaicExportScreen: View {
                 longEdgePixels: sizeChoice.longEdgePixels,
                 pixelsPerInch: 300
               ) else { return }
+        shareFeedback = nil
+        shareFailed = false
         let destination = FileManager.default.temporaryDirectory
             .appendingPathComponent("MosaicExports", isDirectory: true)
             .appendingPathComponent(
