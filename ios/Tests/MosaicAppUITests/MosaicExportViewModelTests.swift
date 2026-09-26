@@ -19,6 +19,7 @@ private actor RecordingExporter: MosaicExporting {
         progress(.init(completed: 1, total: 3))
         await Task.yield()
         progress(.init(completed: 3, total: 3))
+        try Data(repeating: 7, count: 1_024).write(to: destination)
         return .init(
             url: destination,
             format: policy.format,
@@ -77,15 +78,19 @@ final class MosaicExportViewModelTests: XCTestCase {
     @MainActor
     func testSuccessfulExportForwardsEditedAssignmentAndPublishesResult() async throws {
         let exporter = RecordingExporter()
-        let model = MosaicExportViewModel(exporter: exporter)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = MosaicExportViewModel(
+            exporter: exporter,
+            fileStore: MosaicExportFileStore(directory: directory)
+        )
         let tile = MosaicAssignedTile(
             coordinate: .init(column: 0, row: 0),
             source: .init(id: "replacement", origin: .testFixture)
         )
         let policy = try MosaicExportPolicy(format: .jpeg(quality: 0.9), longEdgePixels: 6_000)
-        let destination = URL(fileURLWithPath: "/tmp/mosaic.jpg")
 
-        await model.export(project: .init(), tiles: [tile], policy: policy, to: destination)
+        await model.export(project: .init(), tiles: [tile], policy: policy)
         let snapshot = await exporter.snapshot()
 
         XCTAssertEqual(snapshot.0, [tile])
@@ -93,21 +98,24 @@ final class MosaicExportViewModelTests: XCTestCase {
         guard case .completed(let result) = model.state else {
             return XCTFail("Expected completed export state")
         }
-        XCTAssertEqual(result.url, destination)
+        XCTAssertEqual(result.url.deletingLastPathComponent(), directory)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.url.path))
         XCTAssertEqual(result.width, 6_000)
     }
 
     @MainActor
     func testInsufficientStoragePublishesActionableMessage() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
         let model = MosaicExportViewModel(
-            exporter: FailingExporter(error: .insufficientStorage(required: 10, available: 1))
+            exporter: FailingExporter(error: .insufficientStorage(required: 10, available: 1)),
+            fileStore: MosaicExportFileStore(directory: directory)
         )
 
         await model.export(
             project: .init(),
             tiles: [],
-            policy: try MosaicExportPolicy(format: .png),
-            to: URL(fileURLWithPath: "/tmp/mosaic.png")
+            policy: try MosaicExportPolicy(format: .png)
         )
 
         guard case .failed(let message) = model.state else {
@@ -120,13 +128,17 @@ final class MosaicExportViewModelTests: XCTestCase {
     @MainActor
     func testCancelStopsActiveExport() async throws {
         let exporter = CancellableExporter()
-        let model = MosaicExportViewModel(exporter: exporter)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = MosaicExportViewModel(
+            exporter: exporter,
+            fileStore: MosaicExportFileStore(directory: directory)
+        )
         let task = Task {
             await model.export(
                 project: .init(),
                 tiles: [],
-                policy: try! MosaicExportPolicy(format: .png),
-                to: URL(fileURLWithPath: "/tmp/mosaic.png")
+                policy: try! MosaicExportPolicy(format: .png)
             )
         }
         while !(await exporter.hasStarted()) { await Task.yield() }
@@ -137,5 +149,29 @@ final class MosaicExportViewModelTests: XCTestCase {
 
         XCTAssertEqual(model.state, .cancelled)
         XCTAssertTrue(wasCancelled)
+    }
+
+    @MainActor
+    func testRecoverRestoresCompletedExportAfterViewModelRecreation() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = MosaicExportFileStore(directory: directory)
+        let project = MosaicProject(updatedAt: Date(timeIntervalSince1970: 500))
+        let destination = try await store.destination(for: project.id, format: .png)
+        try Data([1, 2, 3]).write(to: destination)
+        let result = MosaicExportResult(
+            url: destination,
+            format: .png,
+            width: 2,
+            height: 1,
+            bytesWritten: 3,
+            pixelsPerInch: 300
+        )
+        try await store.record(result, for: project)
+        let recreatedModel = MosaicExportViewModel(fileStore: store)
+
+        await recreatedModel.recover(for: project)
+
+        XCTAssertEqual(recreatedModel.state, .completed(result))
     }
 }

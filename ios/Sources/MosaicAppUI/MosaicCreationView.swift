@@ -181,6 +181,9 @@ private struct MosaicExportScreen: View {
             .frame(maxWidth: .infinity)
         }
         .accessibilityIdentifier("mosaic.export.scroll")
+        .task(id: session.workflow.project.updatedAt) {
+            await model.recover(for: session.workflow.project)
+        }
         .onDisappear { model.cancel(updateState: false) }
 #if os(iOS)
         .sheet(isPresented: $isPresentingShareSheet) {
@@ -279,8 +282,10 @@ private struct MosaicExportScreen: View {
                 }
                 createButton("Create again")
                 Button("Start another mosaic") {
-                    model.reset()
-                    Task { await session.startNewProject() }
+                    Task {
+                        await model.discardExport(for: session.workflow.project.id)
+                        await session.startNewProject()
+                    }
                 }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("mosaic.export.new-project")
@@ -364,17 +369,11 @@ private struct MosaicExportScreen: View {
               ) else { return }
         shareFeedback = nil
         shareFailed = false
-        let destination = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MosaicExports", isDirectory: true)
-            .appendingPathComponent(
-                "mosaic-\(session.workflow.project.id.uuidString)-\(UUID().uuidString).\(policy.format.fileExtension)"
-            )
         Task {
             await model.export(
                 project: session.workflow.project,
                 tiles: previewTiles,
-                policy: policy,
-                to: destination
+                policy: policy
             )
         }
     }
