@@ -171,6 +171,7 @@ public struct PhotosPickerCreationView: View {
     @ObservedObject private var session: CreationSession
     private let assetStore: PhotosPickerAssetStore
     private let previewGenerator: any MosaicPreviewGenerating
+    private let exporter: any MosaicExporting
     private let onClose: () -> Void
 
     @State private var isChoosingHero = false
@@ -185,11 +186,13 @@ public struct PhotosPickerCreationView: View {
         session: CreationSession,
         assetStore: PhotosPickerAssetStore,
         previewGenerator: any MosaicPreviewGenerating = UnavailableMosaicPreviewGenerator(),
+        exporter: any MosaicExporting = UnavailableMosaicExporter(),
         onClose: @escaping () -> Void = {}
     ) {
         self.session = session
         self.assetStore = assetStore
         self.previewGenerator = previewGenerator
+        self.exporter = exporter
         self.onClose = onClose
     }
 
@@ -198,6 +201,7 @@ public struct PhotosPickerCreationView: View {
             session: session,
             assetLoader: assetStore,
             previewGenerator: previewGenerator,
+            exporter: exporter,
             onChooseHero: beginHeroSelection,
             onChooseSources: beginSourceSelection,
             onRemoveSource: { reference in

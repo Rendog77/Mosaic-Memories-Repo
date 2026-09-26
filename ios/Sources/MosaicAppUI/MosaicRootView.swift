@@ -9,6 +9,7 @@ public struct MosaicRootView: View {
     private let sourceSelector: any SourcePhotosSelecting
     private let assetLoader: any PhotoAssetLoading
     private let previewGenerator: any MosaicPreviewGenerating
+    private let exporter: any MosaicExporting
     @StateObject private var librarySession: ProjectLibrarySession
     @State private var creationSession: CreationSession?
 
@@ -17,13 +18,15 @@ public struct MosaicRootView: View {
         heroSelector: any HeroPhotoSelecting = UnavailablePhotoSelector(),
         sourceSelector: any SourcePhotosSelecting = UnavailablePhotoSelector(),
         assetLoader: any PhotoAssetLoading = UnavailablePhotoAssetLoader(),
-        previewGenerator: any MosaicPreviewGenerating = UnavailableMosaicPreviewGenerator()
+        previewGenerator: any MosaicPreviewGenerating = UnavailableMosaicPreviewGenerator(),
+        exporter: any MosaicExporting = UnavailableMosaicExporter()
     ) {
         self.store = store
         self.heroSelector = heroSelector
         self.sourceSelector = sourceSelector
         self.assetLoader = assetLoader
         self.previewGenerator = previewGenerator
+        self.exporter = exporter
         _librarySession = StateObject(wrappedValue: ProjectLibrarySession(store: store))
     }
 
@@ -34,6 +37,7 @@ public struct MosaicRootView: View {
                     session: creationSession,
                     assetLoader: assetLoader,
                     previewGenerator: previewGenerator,
+                    exporter: exporter,
                     onClose: {
                         self.creationSession = nil
                         Task { await librarySession.refresh() }

@@ -14,6 +14,7 @@ public struct MosaicCreationView: View {
     @StateObject private var sourceModel: SourceReviewViewModel
     @StateObject private var previewModel: MosaicPreviewViewModel
     @StateObject private var tileInspectorModel: HeroPhotoViewModel
+    @StateObject private var exportModel: MosaicExportViewModel
     private let onClose: () -> Void
     private let onChooseHero: (() -> Void)?
     private let onChooseSources: (() -> Void)?
@@ -23,6 +24,7 @@ public struct MosaicCreationView: View {
         session: CreationSession,
         assetLoader: any PhotoAssetLoading = UnavailablePhotoAssetLoader(),
         previewGenerator: any MosaicPreviewGenerating = UnavailableMosaicPreviewGenerator(),
+        exporter: any MosaicExporting = UnavailableMosaicExporter(),
         onChooseHero: (() -> Void)? = nil,
         onChooseSources: (() -> Void)? = nil,
         onRemoveSource: (@MainActor (AssetReference) async -> Void)? = nil,
@@ -38,6 +40,7 @@ public struct MosaicCreationView: View {
         )
         _previewModel = StateObject(wrappedValue: MosaicPreviewViewModel(generator: previewGenerator))
         _tileInspectorModel = StateObject(wrappedValue: HeroPhotoViewModel(loader: assetLoader))
+        _exportModel = StateObject(wrappedValue: MosaicExportViewModel(exporter: exporter))
         self.onChooseHero = onChooseHero
         self.onChooseSources = onChooseSources
         self.onRemoveSource = onRemoveSource
@@ -103,14 +106,232 @@ public struct MosaicCreationView: View {
                 sourceModel: sourceModel
             )
         case .export:
-            StepCard(
-                title: "Keep your memory",
-                detail: "Save or share a high-quality image when export rendering is connected.",
-                actionTitle: "Start another mosaic"
-            ) {
-                await session.startNewProject()
+            MosaicExportScreen(
+                session: session,
+                previewModel: previewModel,
+                model: exportModel
+            )
+        }
+    }
+}
+
+private struct MosaicExportScreen: View {
+    private enum FormatChoice: String, CaseIterable, Hashable, Identifiable {
+        case jpeg = "JPEG"
+        case png = "PNG"
+
+        var id: Self { self }
+        var format: MosaicExportFormat {
+            switch self {
+            case .jpeg: return .jpeg(quality: 0.9)
+            case .png: return .png
             }
         }
+    }
+
+    private enum SizeChoice: String, CaseIterable, Hashable, Identifiable {
+        case standard = "Standard"
+        case large = "Large"
+
+        var id: Self { self }
+        var longEdgePixels: Int { self == .standard ? 3_000 : 6_000 }
+        var detail: String {
+            self == .standard ? "Good for sharing and small prints" : "Best for large prints"
+        }
+    }
+
+    @ObservedObject var session: CreationSession
+    @ObservedObject var previewModel: MosaicPreviewViewModel
+    @ObservedObject var model: MosaicExportViewModel
+    @State private var formatChoice = FormatChoice.jpeg
+    @State private var sizeChoice = SizeChoice.large
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: MosaicDesign.standardSpacing) {
+                Text("Keep your memory")
+                    .font(.title.bold())
+                    .accessibilityIdentifier("mosaic.export.title")
+                Text("Create a high-quality image from your finished mosaic.")
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+
+                if previewTiles == nil {
+                    unavailablePreview
+                } else {
+                    exportOptions
+                    exportStatus
+                }
+
+                Button("Back to editor") {
+                    model.reset()
+                    Task { await session.move(to: .edit) }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isExporting)
+                .accessibilityIdentifier("mosaic.export.back")
+            }
+            .frame(maxWidth: 560)
+            .frame(maxWidth: .infinity)
+        }
+        .accessibilityIdentifier("mosaic.export.scroll")
+        .onDisappear { model.cancel(updateState: false) }
+    }
+
+    private var exportOptions: some View {
+        VStack(alignment: .leading, spacing: MosaicDesign.standardSpacing) {
+            Text("Image options")
+                .font(.headline)
+            Picker("Format", selection: $formatChoice) {
+                ForEach(FormatChoice.allCases) { choice in
+                    Text(choice.rawValue).tag(choice)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(isExporting)
+            .accessibilityIdentifier("mosaic.export.format")
+
+            Picker("Size", selection: $sizeChoice) {
+                ForEach(SizeChoice.allCases) { choice in
+                    Text(choice.rawValue).tag(choice)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(isExporting)
+            .accessibilityIdentifier("mosaic.export.size")
+
+            Text("\(sizeChoice.longEdgePixels.formatted()) px long edge · \(sizeChoice.detail) · 300 PPI")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .background(.background, in: RoundedRectangle(cornerRadius: MosaicDesign.cornerRadius))
+    }
+
+    @ViewBuilder
+    private var exportStatus: some View {
+        switch model.state {
+        case .idle:
+            createButton("Create high-quality image")
+        case .exporting(let progress):
+            VStack(spacing: MosaicDesign.compactSpacing) {
+                ProgressView(value: fraction(progress))
+                    .accessibilityLabel("Creating high-quality image")
+                    .accessibilityValue("\(percentage(progress)) percent")
+                Text("Creating image — \(percentage(progress))%")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button("Cancel export", role: .cancel) { model.cancel() }
+                    .accessibilityIdentifier("mosaic.export.cancel")
+            }
+        case .completed(let result):
+            VStack(spacing: MosaicDesign.compactSpacing) {
+                Label("High-quality image ready", systemImage: "checkmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+                Text("\(result.width) × \(result.height) px · \(fileSize(result.bytesWritten))")
+                    .font(.subheadline)
+                Text(
+                    String(
+                        format: "Print size at %d PPI: %.1f × %.1f inches",
+                        result.pixelsPerInch,
+                        result.printWidthInches,
+                        result.printHeightInches
+                    )
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                Text("The image is ready for the save and share step.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                createButton("Create again")
+                Button("Start another mosaic") {
+                    model.reset()
+                    Task { await session.startNewProject() }
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("mosaic.export.new-project")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("mosaic.export.completed")
+        case .cancelled:
+            VStack(spacing: MosaicDesign.compactSpacing) {
+                Text("Export cancelled. No partial image was saved.")
+                    .foregroundStyle(.secondary)
+                createButton("Try again")
+            }
+        case .failed(let message):
+            VStack(spacing: MosaicDesign.compactSpacing) {
+                Text(message)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .accessibilityLabel("Export failed: \(message)")
+                createButton("Retry export")
+            }
+        }
+    }
+
+    private var unavailablePreview: some View {
+        VStack(spacing: MosaicDesign.compactSpacing) {
+            Text("The finished mosaic is not loaded.")
+                .foregroundStyle(.red)
+            Text("Return to the editor and regenerate the preview before exporting.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    private func createButton(_ title: String) -> some View {
+        Button(title) { startExport() }
+            .buttonStyle(.borderedProminent)
+            .tint(MosaicDesign.accent)
+            .accessibilityIdentifier("mosaic.export.create")
+    }
+
+    private var previewTiles: [MosaicAssignedTile]? {
+        guard case .loaded(let preview) = previewModel.state else { return nil }
+        return preview.tiles
+    }
+
+    private var isExporting: Bool {
+        if case .exporting = model.state { return true }
+        return false
+    }
+
+    private func startExport() {
+        guard let previewTiles,
+              let policy = try? MosaicExportPolicy(
+                format: formatChoice.format,
+                longEdgePixels: sizeChoice.longEdgePixels,
+                pixelsPerInch: 300
+              ) else { return }
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MosaicExports", isDirectory: true)
+            .appendingPathComponent(
+                "mosaic-\(session.workflow.project.id.uuidString)-\(UUID().uuidString).\(policy.format.fileExtension)"
+            )
+        Task {
+            await model.export(
+                project: session.workflow.project,
+                tiles: previewTiles,
+                policy: policy,
+                to: destination
+            )
+        }
+    }
+
+    private func fraction(_ progress: MosaicProgress) -> Double {
+        guard progress.total > 0 else { return 0 }
+        return min(1, max(0, Double(progress.completed) / Double(progress.total)))
+    }
+
+    private func percentage(_ progress: MosaicProgress) -> Int {
+        Int((fraction(progress) * 100).rounded())
+    }
+
+    private func fileSize(_ bytes: Int) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 }
 

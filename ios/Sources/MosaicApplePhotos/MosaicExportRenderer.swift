@@ -6,51 +6,6 @@ import MosaicCore
 import MosaicFeatures
 import UniformTypeIdentifiers
 
-public enum MosaicExportFormat: Equatable, Sendable {
-    case png
-    case jpeg(quality: Double)
-}
-
-public struct MosaicExportPolicy: Equatable, Sendable {
-    public static let maximumLongEdgePixels = 12_000
-
-    public let format: MosaicExportFormat
-    public let longEdgePixels: Int
-    public let pixelsPerInch: Int
-
-    public init(
-        format: MosaicExportFormat,
-        longEdgePixels: Int = 6_000,
-        pixelsPerInch: Int = 300
-    ) throws {
-        guard longEdgePixels > 0,
-              longEdgePixels <= Self.maximumLongEdgePixels,
-              (72...600).contains(pixelsPerInch) else {
-            throw MosaicExportError.invalidPolicy
-        }
-        if case .jpeg(let quality) = format {
-            guard quality.isFinite, (0...1).contains(quality) else {
-                throw MosaicExportError.invalidPolicy
-            }
-        }
-        self.format = format
-        self.longEdgePixels = longEdgePixels
-        self.pixelsPerInch = pixelsPerInch
-    }
-}
-
-public struct MosaicExportResult: Equatable, Sendable {
-    public let url: URL
-    public let format: MosaicExportFormat
-    public let width: Int
-    public let height: Int
-    public let bytesWritten: Int
-    public let pixelsPerInch: Int
-
-    public var printWidthInches: Double { Double(width) / Double(pixelsPerInch) }
-    public var printHeightInches: Double { Double(height) / Double(pixelsPerInch) }
-}
-
 public protocol MosaicExportStorageChecking: Sendable {
     func availableCapacity(at destination: URL) throws -> Int64?
 }
@@ -396,16 +351,6 @@ public struct AppleMosaicExportRenderer: Sendable {
         guard !overflow else { throw MosaicExportError.assignmentDoesNotMatchProject }
         return result
     }
-}
-
-public enum MosaicExportError: Error, Equatable, Sendable {
-    case invalidPolicy
-    case assignmentDoesNotMatchProject
-    case insufficientStorage(required: Int64, available: Int64)
-    case imageDecodeFailed
-    case rasterizationFailed
-    case encodingFailed
-    case writeFailed
 }
 
 private struct ExportLayout: Sendable {

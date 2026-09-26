@@ -7,17 +7,20 @@ public struct PhotosPickerRootView: View {
     private let store: any ProjectStoring
     private let assetStore: PhotosPickerAssetStore
     private let previewGenerator: any MosaicPreviewGenerating
+    private let exporter: any MosaicExporting
     @StateObject private var librarySession: ProjectLibrarySession
     @State private var creationSession: CreationSession?
 
     public init(
         store: any ProjectStoring,
         assetStore: PhotosPickerAssetStore,
-        previewGenerator: any MosaicPreviewGenerating = UnavailableMosaicPreviewGenerator()
+        previewGenerator: any MosaicPreviewGenerating = UnavailableMosaicPreviewGenerator(),
+        exporter: any MosaicExporting = UnavailableMosaicExporter()
     ) {
         self.store = store
         self.assetStore = assetStore
         self.previewGenerator = previewGenerator
+        self.exporter = exporter
         _librarySession = StateObject(wrappedValue: ProjectLibrarySession(store: store))
     }
 
@@ -27,7 +30,8 @@ public struct PhotosPickerRootView: View {
                 PhotosPickerCreationView(
                     session: creationSession,
                     assetStore: assetStore,
-                    previewGenerator: previewGenerator
+                    previewGenerator: previewGenerator,
+                    exporter: exporter
                 ) {
                     self.creationSession = nil
                     Task { await librarySession.refresh() }
