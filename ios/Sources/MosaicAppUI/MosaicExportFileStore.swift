@@ -177,7 +177,14 @@ public actor MosaicExportFileStore: MosaicExportFileManaging {
     }
 
     private func contains(_ url: URL) -> Bool {
-        url.standardizedFileURL.deletingLastPathComponent() == directory
+        let candidateParent = url.standardizedFileURL
+            .deletingLastPathComponent()
+            .resolvingSymlinksInPath()
+            .path
+        let managedDirectory = directory
+            .resolvingSymlinksInPath()
+            .path
+        return candidateParent == managedDirectory
     }
 
     private func fileSize(at url: URL) -> Int? {

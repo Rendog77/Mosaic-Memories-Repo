@@ -98,7 +98,10 @@ final class MosaicExportViewModelTests: XCTestCase {
         guard case .completed(let result) = model.state else {
             return XCTFail("Expected completed export state")
         }
-        XCTAssertEqual(result.url.deletingLastPathComponent(), directory)
+        XCTAssertEqual(
+            result.url.deletingLastPathComponent().standardizedFileURL.path,
+            directory.standardizedFileURL.path
+        )
         XCTAssertTrue(FileManager.default.fileExists(atPath: result.url.path))
         XCTAssertEqual(result.width, 6_000)
     }
