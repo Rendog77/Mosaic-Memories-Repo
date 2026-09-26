@@ -74,7 +74,7 @@ public struct AppleMosaicPreviewRenderer: Sendable {
             height: height,
             bitsPerComponent: 8,
             bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
+            space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue |
                 CGImageAlphaInfo.premultipliedLast.rawValue
         ) else {

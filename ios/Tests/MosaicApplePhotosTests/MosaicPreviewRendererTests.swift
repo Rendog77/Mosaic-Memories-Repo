@@ -26,6 +26,10 @@ private actor PreviewRendererLoaderStub: PhotoAssetLoading {
     func requestCount(for id: String) -> Int {
         requestCounts[id, default: 0]
     }
+
+    func totalRequestCount() -> Int {
+        requestCounts.values.reduce(0, +)
+    }
 }
 
 private final class RenderProgressCollector: @unchecked Sendable {
@@ -45,7 +49,153 @@ private final class RenderProgressCollector: @unchecked Sendable {
     }
 }
 
+private struct ExportStorageCheckerStub: MosaicExportStorageChecking {
+    let capacity: Int64?
+
+    func availableCapacity(at destination: URL) throws -> Int64? {
+        capacity
+    }
+}
+
 final class MosaicPreviewRendererTests: XCTestCase {
+    func testHighResolutionPNGExportReusesAssignmentAndWritesAtomically() async throws {
+        let fixture = try makeExportFixture()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let destination = directory.appendingPathComponent("mosaic.png")
+        let collector = RenderProgressCollector()
+        let policy = try MosaicExportPolicy(
+            format: .png,
+            longEdgePixels: 20,
+            pixelsPerInch: 200
+        )
+
+        let result = try await AppleMosaicExportRenderer(
+            storageChecker: ExportStorageCheckerStub(capacity: Int64.max)
+        ).export(
+            project: fixture.project,
+            assignment: fixture.assignment,
+            loader: fixture.loader,
+            policy: policy,
+            to: destination
+        ) { collector.append($0) }
+
+        let data = try Data(contentsOf: destination)
+        let imageSource = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(imageSource, 0, nil))
+        XCTAssertEqual(result.url, destination)
+        XCTAssertEqual(result.format, .png)
+        XCTAssertEqual(result.width, 20)
+        XCTAssertEqual(result.height, 10)
+        XCTAssertEqual(result.bytesWritten, data.count)
+        XCTAssertEqual(result.printWidthInches, 0.1, accuracy: 0.000_001)
+        XCTAssertEqual(result.printHeightInches, 0.05, accuracy: 0.000_001)
+        XCTAssertEqual(image.width, 20)
+        XCTAssertEqual(image.height, 10)
+        XCTAssertEqual(collector.snapshot().last?.completed, collector.snapshot().last?.total)
+    }
+
+    func testJPEGExportEmbedsPolicyAndProducesExpectedType() async throws {
+        let fixture = try makeExportFixture()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let destination = directory.appendingPathComponent("mosaic.jpg")
+        let policy = try MosaicExportPolicy(
+            format: .jpeg(quality: 0.82),
+            longEdgePixels: 24,
+            pixelsPerInch: 300
+        )
+
+        let result = try await AppleMosaicExportRenderer(
+            storageChecker: ExportStorageCheckerStub(capacity: Int64.max)
+        ).export(
+            project: fixture.project,
+            assignment: fixture.assignment,
+            loader: fixture.loader,
+            policy: policy,
+            to: destination
+        )
+
+        let data = try Data(contentsOf: destination)
+        let imageSource = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
+        let imageType = CGImageSourceGetType(imageSource) as String?
+        let properties = try XCTUnwrap(
+            CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any]
+        )
+        XCTAssertEqual(imageType, UTType.jpeg.identifier)
+        XCTAssertEqual((properties[kCGImagePropertyDPIWidth] as? NSNumber)?.intValue, 300)
+        XCTAssertEqual((properties[kCGImagePropertyDPIHeight] as? NSNumber)?.intValue, 300)
+        XCTAssertEqual(result.format, .jpeg(quality: 0.82))
+        XCTAssertEqual(result.width, 24)
+        XCTAssertEqual(result.height, 12)
+        XCTAssertGreaterThan(result.bytesWritten, 0)
+    }
+
+    func testExportRejectsInsufficientStorageBeforeLoadingAssets() async throws {
+        let fixture = try makeExportFixture()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let destination = directory.appendingPathComponent("mosaic.png")
+        let policy = try MosaicExportPolicy(format: .png, longEdgePixels: 20)
+
+        do {
+            _ = try await AppleMosaicExportRenderer(
+                storageChecker: ExportStorageCheckerStub(capacity: 0)
+            ).export(
+                project: fixture.project,
+                assignment: fixture.assignment,
+                loader: fixture.loader,
+                policy: policy,
+                to: destination
+            )
+            XCTFail("Expected storage preflight failure")
+        } catch let error as MosaicExportError {
+            guard case .insufficientStorage(let required, let available) = error else {
+                return XCTFail("Unexpected export error: \(error)")
+            }
+            XCTAssertGreaterThan(required, 0)
+            XCTAssertEqual(available, 0)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+        let requestCount = await fixture.loader.totalRequestCount()
+        XCTAssertEqual(requestCount, 0)
+    }
+
+    func testCancelledExportDoesNotPublishDestination() async throws {
+        let fixture = try makeExportFixture()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let destination = directory.appendingPathComponent("mosaic.png")
+        let policy = try MosaicExportPolicy(format: .png, longEdgePixels: 20)
+        let renderer = AppleMosaicExportRenderer(
+            storageChecker: ExportStorageCheckerStub(capacity: Int64.max)
+        )
+        let task = Task {
+            try await renderer.export(
+                project: fixture.project,
+                assignment: fixture.assignment,
+                loader: fixture.loader,
+                policy: policy,
+                to: destination
+            )
+        }
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected export cancellation")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+    }
+
     func testRendererCompositesAssignedTilesAtBoundedDimensions() async throws {
         let red = try makePNG(width: 1, height: 1, pixels: [(255, 0, 0, 255)])
         let blue = try makePNG(width: 1, height: 1, pixels: [(0, 0, 255, 255)])
@@ -188,6 +338,39 @@ final class MosaicPreviewRendererTests: XCTestCase {
         } catch let error as MosaicPreviewRenderingError {
             XCTAssertEqual(error, .assignmentDoesNotMatchProject)
         }
+    }
+
+    private func makeExportFixture() throws -> (
+        project: MosaicProject,
+        assignment: MosaicPreviewAssignment,
+        loader: PreviewRendererLoaderStub
+    ) {
+        let red = try makePNG(width: 1, height: 1, pixels: [(255, 0, 0, 255)])
+        let blue = try makePNG(width: 1, height: 1, pixels: [(0, 0, 255, 255)])
+        let hero = AssetReference(id: "export-hero", origin: .testFixture)
+        let redSource = AssetReference(id: "export-red", origin: .testFixture)
+        let blueSource = AssetReference(id: "export-blue", origin: .testFixture)
+        let project = MosaicProject(
+            hero: hero,
+            sources: [redSource, blueSource],
+            sourcesConfirmed: true,
+            recipe: .init(columns: 2, likeness: 0.5, repeatWindow: 1)
+        )
+        let assignment = MosaicPreviewAssignment(
+            engineVersion: project.recipe.engineVersion,
+            tiles: [
+                .init(coordinate: .init(column: 0, row: 0), source: redSource),
+                .init(coordinate: .init(column: 1, row: 0), source: blueSource),
+            ]
+        )
+        let loader = PreviewRendererLoaderStub(
+            dataByID: [
+                hero.id: red,
+                redSource.id: red,
+                blueSource.id: blue,
+            ]
+        )
+        return (project, assignment, loader)
     }
 
     private func makePNG(
