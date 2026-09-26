@@ -94,6 +94,15 @@ final class MosaicPreviewRendererTests: XCTestCase {
         XCTAssertEqual(image.width, 20)
         XCTAssertEqual(image.height, 10)
         XCTAssertEqual(collector.snapshot().last?.completed, collector.snapshot().last?.total)
+        let heroRequests = await fixture.loader.requestCount(for: "export-hero")
+        let redRequests = await fixture.loader.requestCount(for: "export-red")
+        let blueRequests = await fixture.loader.requestCount(for: "export-blue")
+        XCTAssertEqual(heroRequests, 1)
+        XCTAssertEqual(redRequests, 1)
+        XCTAssertEqual(blueRequests, 1)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), [
+            "mosaic.png",
+        ])
     }
 
     func testJPEGExportEmbedsPolicyAndProducesExpectedType() async throws {

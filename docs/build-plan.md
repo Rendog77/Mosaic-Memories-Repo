@@ -61,7 +61,7 @@ The sequencing rule is: **prove that people value the artwork, then prove that s
 
 ## Phase 6 — Export (weeks 11–13)
 
-**Status:** In progress. A policy-driven Apple export renderer now reuses the saved deterministic assignment at a bounded high-resolution long edge, renders in sRGB, supports PNG and quality-controlled JPEG with print-density metadata, reports rendering progress, preflights conservative disk capacity, and publishes the completed file atomically. Cancellation before publication leaves no partial destination. The remaining work is strip-backed rendering for lower peak memory, export UI/save/share integration, lifecycle recovery, and reference-export inspection.
+**Status:** In progress. A policy-driven Apple export renderer now reuses the saved deterministic assignment at a bounded high-resolution long edge, renders row-major into a file-backed sRGB raster with a bounded LRU source-image cache, supports PNG and quality-controlled JPEG with print-density metadata, reports rendering progress, preflights conservative disk capacity, and publishes the completed file atomically. The full output buffer no longer occupies heap memory, and cancellation before publication removes scratch files without exposing a partial destination. The remaining work is export UI/save/share integration, lifecycle recovery, and reference-export inspection.
 
 - Implement JPEG/PNG policies, strip-based rendering, disk preflight, cancellation/recovery, save/share, colour profile, and physical-size guidance.
 - Produce and inspect at least one reference print.
