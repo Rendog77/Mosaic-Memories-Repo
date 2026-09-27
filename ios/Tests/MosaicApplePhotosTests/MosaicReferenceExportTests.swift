@@ -10,6 +10,10 @@ import XCTest
 private actor ReferenceExportLoader: PhotoAssetLoading {
     let dataByID: [String: Data]
 
+    init(dataByID: [String: Data]) {
+        self.dataByID = dataByID
+    }
+
     func thumbnail(for reference: AssetReference, maximumPixelSize: Int) throws -> Data {
         guard let data = dataByID[reference.id] else {
             throw PhotoSelectionError.assetUnavailable(reference.id)
