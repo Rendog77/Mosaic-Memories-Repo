@@ -34,12 +34,24 @@ final class MosaicEditorAccessibilityUITests: XCTestCase {
         XCTAssertFalse(undo.isEnabled)
         XCTAssertFalse(redo.isEnabled)
 
-        slider.adjust(toNormalizedSliderPosition: 0.70)
-        XCTAssertTrue(waitForValue("70 percent hero likeness", on: slider, timeout: 10))
-        XCTAssertTrue(waitForEnabled(undo, timeout: 10))
-
         let editorScrollView = app.scrollViews["mosaic.editor.scroll"]
         XCTAssertTrue(editorScrollView.exists)
+        makeHittable(slider, in: editorScrollView, direction: .up)
+        guard adjust(
+            slider,
+            to: 0.70,
+            expectedValue: "70 percent hero likeness"
+        ) else {
+            attachDiagnostics(from: app, name: "Editor likeness slider did not change")
+            XCTFail("The simulator did not apply the likeness slider gesture after three attempts")
+            return
+        }
+        guard waitForEnabled(undo, timeout: 10) else {
+            attachDiagnostics(from: app, name: "Editor likeness change was not committed")
+            XCTFail("The likeness change did not create an undoable edit")
+            return
+        }
+
         makeHittable(undo, in: editorScrollView)
         undo.tap()
         XCTAssertTrue(waitForValue("50 percent hero likeness", on: slider, timeout: 10))
@@ -110,6 +122,20 @@ final class MosaicEditorAccessibilityUITests: XCTestCase {
         let predicate = NSPredicate(format: "exists == true AND enabled == true")
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    private func adjust(
+        _ slider: XCUIElement,
+        to position: CGFloat,
+        expectedValue: String
+    ) -> Bool {
+        for _ in 0..<3 {
+            slider.adjust(toNormalizedSliderPosition: position)
+            if waitForValue(expectedValue, on: slider, timeout: 4) {
+                return true
+            }
+        }
+        return false
     }
 
     private func waitForValue(
