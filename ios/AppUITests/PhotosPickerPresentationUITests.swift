@@ -164,26 +164,25 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         initialFrame: CGRect,
         in app: XCUIApplication
     ) -> Bool {
-        let hittable = NSPredicate(format: "exists == true AND hittable == true")
-        let expectation = XCTNSPredicateExpectation(predicate: hittable, object: cancelButton)
-        if XCTWaiter.wait(for: [expectation], timeout: 3) == .completed {
-            cancelButton.tap()
+        // Querying hittability on this system-owned control can itself fail when
+        // Photos briefly reports an invalid activation point. The caller has
+        // already verified this frame, so route the tap through the app window.
+        tapPickerCancel(at: initialFrame, in: app)
+        if waitForNonexistence(cancelButton, timeout: 4) {
+            return true
+        }
+
+        // Retry with a refreshed frame after the picker has had time to settle.
+        if let refreshedFrame = waitForPickerFrame(cancelButton, timeout: 3) {
+            tapPickerCancel(at: refreshedFrame, in: app)
             if waitForNonexistence(cancelButton, timeout: 4) {
                 return true
             }
         }
 
-        // The system picker can temporarily expose Cancel as non-hittable even
-        // with a valid frame. Route a physical tap through the app window then.
-        tapPickerCancel(at: usableFrame(of: cancelButton) ?? initialFrame, in: app)
-        if waitForNonexistence(cancelButton, timeout: 4) {
-            return true
-        }
-
-        // Allow one fresh accessibility attempt after the picker settles.
-        if cancelButton.exists, cancelButton.isHittable {
-            cancelButton.tap()
-        }
+        // Preserve a final fixed-position fallback for picker versions that
+        // stop publishing a usable accessibility frame.
+        tapPickerCancel(at: .zero, in: app)
         return waitForNonexistence(cancelButton, timeout: 4)
     }
 
@@ -207,12 +206,6 @@ final class PhotosPickerPresentationUITests: XCTestCase {
         window.coordinate(
             withNormalizedOffset: CGVector(dx: 0.10, dy: 0.115)
         ).tap()
-    }
-
-    private func usableFrame(of element: XCUIElement) -> CGRect? {
-        guard element.exists else { return nil }
-        let frame = element.frame
-        return hasUsableFrame(frame) ? frame : nil
     }
 
     private func waitForNonexistence(
